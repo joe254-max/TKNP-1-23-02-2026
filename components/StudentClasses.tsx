@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { addSignal, listenSignals, removeSignal } from '../lib/firebaseClient';
 import { 
   ArrowLeft, Users, Calendar, Clock, GraduationCap, 
   BookOpen, FileText, BarChart3, Presentation, Plus, 
@@ -163,7 +164,10 @@ const StudentClasses: React.FC<{
   const teacherVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const teacherPiPRef = React.useRef<HTMLVideoElement | null>(null);
   const teacherPeerRef = React.useRef<RTCPeerConnection | null>(null);
-  const teacherSignalRef = React.useRef<BroadcastChannel | null>(null);
+  const teacherSignalRef = React.useRef<any | null>(null);
+  const teacherFirestoreUnsubRef = React.useRef<(() => void) | null>(null);
+  const teacherIdRef = React.useRef<string | null>(null);
+  const pendingCandidatesRef = React.useRef<any[]>([]);
   const teacherStreamsRef = React.useRef<{ camera: MediaStream | null; screen: MediaStream | null }>({ camera: null, screen: null });
   const teacherVideoCountRef = React.useRef(0);
   const [teacherFeedStatus, setTeacherFeedStatus] = useState<'CONNECTING' | 'LIVE' | 'OFFLINE' | 'ERROR'>('OFFLINE');
@@ -338,12 +342,13 @@ const StudentClasses: React.FC<{
   };
 
   const stopTeacherReceiver = () => {
-    try {
-      teacherSignalRef.current?.close();
-    } catch {
-      // ignore
-    }
+    try { teacherSignalRef.current?.off && teacherSignalRef.current.off('signal'); } catch {}
+    try { teacherSignalRef.current?.disconnect && teacherSignalRef.current.disconnect(); } catch {}
     teacherSignalRef.current = null;
+    try { if (teacherFirestoreUnsubRef.current) { teacherFirestoreUnsubRef.current(); } } catch {}
+    teacherFirestoreUnsubRef.current = null;
+    teacherIdRef.current = null;
+    pendingCandidatesRef.current = [];
     try {
       teacherPeerRef.current?.close();
     } catch {
@@ -374,8 +379,49 @@ const StudentClasses: React.FC<{
     stopTeacherReceiver();
     setTeacherFeedStatus('CONNECTING');
 
-    const channel = new BroadcastChannel(`poly_live_stream_${selectedClass.id}`);
-    teacherSignalRef.current = channel;
+      teacherSignalRef.current = null;
+
+      // listen for Firestore signals for this class
+      const unsub = listenSignals(selectedClass.id, async (snapshot: any) => {
+        for (const change of snapshot.docChanges()) {
+          if (change.type !== 'added') continue;
+          const doc = change.doc;
+          const msg = doc.data();
+          if (!msg) continue;
+          if (msg.role !== 'teacher') {
+            try { await removeSignal(selectedClass.id, doc.id); } catch {}
+            continue;
+          }
+          if (msg.to && msg.to !== identity.id) continue;
+          try {
+            if (msg.type === 'offer' && msg.sdp) {
+              teacherIdRef.current = msg.from as string;
+              await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              try { await addSignal(selectedClass.id, { type: 'answer', classId: selectedClass.id, from: identity.id, role: 'student', to: msg.from, sdp: pc.localDescription ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp } : null }); } catch {}
+              // flush pending candidates
+              const teacherId = msg.from as string;
+              for (const c of pendingCandidatesRef.current) {
+                try { await addSignal(selectedClass.id, { type: 'candidate', classId: selectedClass.id, from: identity.id, role: 'student', to: teacherId, candidate: c }); } catch {}
+              }
+              pendingCandidatesRef.current = [];
+            } else if (msg.type === 'candidate' && msg.candidate) {
+              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+            } else if (msg.type === 'end') {
+              setTeacherFeedStatus('OFFLINE');
+              stopTeacherReceiver();
+            }
+          } catch {
+            setTeacherFeedStatus('ERROR');
+          }
+          try { await removeSignal(selectedClass.id, doc.id); } catch {}
+        }
+      });
+      teacherFirestoreUnsubRef.current = unsub;
+
+      // ask teacher for an offer
+      try { addSignal(selectedClass.id, { type: 'join', classId: selectedClass.id, from: identity.id, role: 'student', name: identity.name }); } catch {}
 
     const pc = new RTCPeerConnection(RTC_CONFIG);
     teacherPeerRef.current = pc;
@@ -402,13 +448,14 @@ const StudentClasses: React.FC<{
 
     pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
-      channel.postMessage({
-        type: 'candidate',
-        classId: selectedClass.id,
-        from: identity.id,
-        role: 'student',
-        candidate: ev.candidate.toJSON(),
-      });
+      const cand = ev.candidate.toJSON();
+      const teacherId = teacherIdRef.current;
+      if (teacherId) {
+        try { addSignal(selectedClass.id, { type: 'candidate', classId: selectedClass.id, from: identity.id, role: 'student', to: teacherId, candidate: cand }); } catch {}
+      } else {
+        // queue until we know teacher id (offer arrives)
+        pendingCandidatesRef.current.push(cand);
+      }
     };
 
     pc.onconnectionstatechange = () => {
@@ -418,45 +465,7 @@ const StudentClasses: React.FC<{
       }
     };
 
-    channel.onmessage = async (evt) => {
-      const msg = evt.data;
-      if (!msg || msg.classId !== selectedClass.id) return;
-      if (msg.role !== 'teacher') return;
-      if (msg.to && msg.to !== identity.id) return;
-
-      try {
-        if (msg.type === 'offer' && msg.sdp) {
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          channel.postMessage({
-            type: 'answer',
-            classId: selectedClass.id,
-            from: identity.id,
-            role: 'student',
-            sdp: pc.localDescription
-              ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp }
-              : null,
-          });
-        } else if (msg.type === 'candidate' && msg.candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-        } else if (msg.type === 'end') {
-          setTeacherFeedStatus('OFFLINE');
-          stopTeacherReceiver();
-        }
-      } catch {
-        setTeacherFeedStatus('ERROR');
-      }
-    };
-
-    // Ask teacher for an offer (teacher responds per-student)
-    channel.postMessage({
-      type: 'join',
-      classId: selectedClass.id,
-      from: identity.id,
-      role: 'student',
-      name: identity.name,
-    });
+    // (handled via Firestore listener above)
 
     return () => {
       stopTeacherReceiver();
@@ -611,25 +620,31 @@ const StudentClasses: React.FC<{
       attendance: 0,
       assignmentsDone: '0 assignments'
     };
-    setMyClasses((prev) => [...prev, enrolledClass]);
-    const enrollmentKey = 'poly_enrolled_students';
-    const currentEnrollmentsStr = localStorage.getItem(enrollmentKey) || '[]';
-    const currentEnrollments = JSON.parse(currentEnrollmentsStr);
-    currentEnrollments.push({
-      id: `joined-${Date.now()}`,
-      name: profile.fullName.toUpperCase(),
-      admNo: profile.schoolRegistryId.toUpperCase(),
-      phone: profile.phone,
-      gender: profile.gender,
-      classId: cls.id,
-      attendance: 0,
-      gradeAverage: 0,
-      status: 'ACTIVE'
-    });
-    localStorage.setItem(enrollmentKey, JSON.stringify(currentEnrollments));
-    localStorage.setItem(CURRENT_STUDENT_ID_KEY, JSON.stringify({ id: profile.schoolRegistryId, name: profile.fullName }));
-    setIsProfileModalOpen(false);
-    setClassPendingEnrollment(null);
+    try {
+      setMyClasses((prev) => [...prev, enrolledClass]);
+      const enrollmentKey = 'poly_enrolled_students';
+      const currentEnrollmentsStr = localStorage.getItem(enrollmentKey) || '[]';
+      const currentEnrollments = JSON.parse(currentEnrollmentsStr);
+      currentEnrollments.push({
+        id: `joined-${Date.now()}`,
+        name: profile.fullName.toUpperCase(),
+        admNo: profile.schoolRegistryId.toUpperCase(),
+        phone: profile.phone,
+        gender: profile.gender,
+        classId: cls.id,
+        attendance: 0,
+        gradeAverage: 0,
+        status: 'ACTIVE'
+      });
+      localStorage.setItem(enrollmentKey, JSON.stringify(currentEnrollments));
+      localStorage.setItem(CURRENT_STUDENT_ID_KEY, JSON.stringify({ id: profile.schoolRegistryId, name: profile.fullName }));
+      setIsProfileModalOpen(false);
+      setClassPendingEnrollment(null);
+      try { window.alert(`Added "${cls.title}" to My Classes`); } catch {}
+      setActiveView('LIST');
+    } catch (err) {
+      try { window.alert('Could not add class — storage may be blocked.'); } catch {}
+    }
   };
 
   const handleProfileModalSubmit = (e: React.FormEvent) => {

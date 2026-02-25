@@ -9,6 +9,7 @@ import {
   UserCheck2, UserX2, Filter, RotateCcw, Info, Printer, Lock, History, FileText, CloudUpload, Mail, BarChart3, ArrowRight, ExternalLink, Monitor, Zap, Globe, Layers, BookOpen, Clock, Trash2, CalendarPlus, TrendingUp, AlertTriangle, Briefcase, Calendar, Power, DoorOpen
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { addSignal, listenSignals, removeSignal } from '../lib/firebaseClient';
 import { jsPDF } from 'jspdf';
 import { saveRecording, getAllRecordings, type RecordedSession } from '../lib/recordingsDb';
 
@@ -111,7 +112,8 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
   const lecturerCameraPiPRef = useRef<HTMLVideoElement>(null);
   const pdfPrintRef = useRef<HTMLDivElement>(null);
   const classFormRef = useRef<HTMLFormElement>(null);
-  const broadcasterSignalRef = useRef<BroadcastChannel | null>(null);
+  const broadcasterSignalRef = useRef<any | null>(null);
+  const firestoreUnsubRef = useRef<(() => void) | null>(null);
   interface PeerState {
     pc: RTCPeerConnection;
     cameraSender: RTCRtpSender | null;
@@ -387,14 +389,11 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
   const stopBroadcast = () => {
     stopRecording();
     try {
-      if (broadcasterSignalRef.current && broadcasterClassIdRef.current) {
-        broadcasterSignalRef.current.postMessage({
-          type: 'end',
-          classId: broadcasterClassIdRef.current,
-          role: 'teacher',
-          from: user.id,
-        });
+      if (firestoreUnsubRef.current) {
+        try { firestoreUnsubRef.current(); } catch {}
+        firestoreUnsubRef.current = null;
       }
+      try { if (broadcasterClassIdRef.current) addSignal(broadcasterClassIdRef.current, { type: 'end', classId: broadcasterClassIdRef.current, from: user.id, role: 'teacher' }); } catch {}
     } catch {
       // ignore
     }
@@ -402,15 +401,13 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
       try { state.pc.close(); } catch { /* ignore */ }
     });
     broadcasterPeersRef.current = {};
-    try { broadcasterSignalRef.current?.close(); } catch { /* ignore */ }
     broadcasterSignalRef.current = null;
     broadcasterClassIdRef.current = null;
   };
 
   const updateBroadcastTracks = (camStream: MediaStream | null, screenStr: MediaStream | null) => {
     const classId = broadcasterClassIdRef.current;
-    const channel = broadcasterSignalRef.current;
-    if (!classId || !channel) return;
+    if (!classId) return;
     const camTrack = camStream?.getVideoTracks()[0] ?? null;
     const screenTrack = screenStr?.getVideoTracks()[0] ?? null;
 
@@ -423,14 +420,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
           state.cameraSender = pc.addTrack(camTrack, camStream!);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          channel.postMessage({
-            type: 'offer',
-            classId,
-            role: 'teacher',
-            from: user.id,
-            to: studentId,
-            sdp: pc.localDescription ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp } : null,
-          });
+          try { await addSignal(classId, { type: 'offer', classId, role: 'teacher', from: user.id, to: studentId, sdp: pc.localDescription ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp } : null }); } catch {}
         }
         if (screenSender) {
           await screenSender.replaceTrack(screenTrack);
@@ -438,14 +428,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
           state.screenSender = pc.addTrack(screenTrack, screenStr!);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          channel.postMessage({
-            type: 'offer',
-            classId,
-            role: 'teacher',
-            from: user.id,
-            to: studentId,
-            sdp: pc.localDescription ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp } : null,
-          });
+          try { await addSignal(classId, { type: 'offer', classId, role: 'teacher', from: user.id, to: studentId, sdp: pc.localDescription ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp } : null }); } catch {}
         }
       } catch {
         // ignore
@@ -465,8 +448,37 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
     }
     stopBroadcast();
     broadcasterClassIdRef.current = classId;
-    const channel = new BroadcastChannel(`poly_live_stream_${classId}`);
-    broadcasterSignalRef.current = channel;
+    // start listening to Firestore signals for this class
+    const unsub = listenSignals(classId, async (snapshot: any) => {
+      for (const change of snapshot.docChanges()) {
+        const doc = change.doc;
+        const msg = doc.data();
+        if (!msg) continue;
+        try {
+          if (msg.role !== 'student') {
+            await removeSignal(classId, doc.id);
+            continue;
+          }
+          const studentId = msg.from as string;
+          if (msg.type === 'join') {
+            const state = await ensurePeer(studentId);
+            const offer = await state.pc.createOffer();
+            await state.pc.setLocalDescription(offer);
+            await addSignal(classId, { type: 'offer', classId, role: 'teacher', from: user.id, to: studentId, sdp: state.pc.localDescription ? { type: state.pc.localDescription.type, sdp: state.pc.localDescription.sdp } : null });
+          } else if (msg.type === 'answer' && msg.sdp) {
+            const state = broadcasterPeersRef.current[studentId];
+            if (state) await state.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          } else if (msg.type === 'candidate' && msg.candidate) {
+            const state = await ensurePeer(studentId);
+            await state.pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+          }
+        } catch {
+          // ignore
+        }
+        try { await removeSignal(classId, doc.id); } catch {}
+      }
+    });
+    firestoreUnsubRef.current = unsub;
 
     const ensurePeer = async (studentId: string): Promise<PeerState> => {
       const existing = broadcasterPeersRef.current[studentId];
@@ -486,14 +498,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
 
       pc.onicecandidate = (ev) => {
         if (!ev.candidate) return;
-        channel.postMessage({
-          type: 'candidate',
-          classId,
-          role: 'teacher',
-          from: user.id,
-          to: studentId,
-          candidate: ev.candidate.toJSON(),
-        });
+        try { addSignal(classId, { type: 'candidate', classId, role: 'teacher', from: user.id, to: studentId, candidate: ev.candidate.toJSON() }); } catch {}
       };
 
       const state: PeerState = { pc, cameraSender, screenSender };
@@ -501,8 +506,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
       return state;
     };
 
-    channel.onmessage = async (evt: MessageEvent) => {
-      const msg = evt.data;
+    socket.on('signal', async (msg: any) => {
       if (!msg || msg.classId !== classId) return;
       if (msg.role !== 'student') return;
       if (!msg.from) return;
@@ -512,14 +516,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
           const state = await ensurePeer(studentId);
           const offer = await state.pc.createOffer();
           await state.pc.setLocalDescription(offer);
-          channel.postMessage({
-            type: 'offer',
-            classId,
-            role: 'teacher',
-            from: user.id,
-            to: studentId,
-            sdp: state.pc.localDescription ? { type: state.pc.localDescription.type, sdp: state.pc.localDescription.sdp } : null,
-          });
+          try { socket.emit('signal', { type: 'offer', classId, role: 'teacher', from: user.id, to: studentId, sdp: state.pc.localDescription ? { type: state.pc.localDescription.type, sdp: state.pc.localDescription.sdp } : null }); } catch {}
         } else if (msg.type === 'answer' && msg.sdp) {
           const state = broadcasterPeersRef.current[studentId];
           if (state) await state.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
@@ -530,7 +527,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
       } catch {
         // ignore
       }
-    };
+    });
     startRecording();
   };
 
