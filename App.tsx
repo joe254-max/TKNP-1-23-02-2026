@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { User, UserRole, Resource, ResourceType } from './types.ts';
 import { MOCK_RESOURCES, DEPARTMENTS } from './constants.ts';
 import Navbar from './components/Navbar.tsx';
@@ -89,7 +90,12 @@ const App: React.FC = () => {
   };
 
   if (!user) {
-    return <Login onLogin={handleLogin} />;
+    return (
+      <>
+        <Login onLogin={handleLogin} />
+        <Analytics />
+      </>
+    );
   }
 
   if (user.role !== UserRole.STUDENT && (view === 'dashboard' || view === 'home')) {
@@ -100,6 +106,7 @@ const App: React.FC = () => {
           <main className="flex-1 p-4 md:p-10 overflow-y-auto bg-slate-50/50 max-w-screen-2xl mx-auto w-full">
             <StudentClasses initialTab="ONLINE" isLecturerPreview />
           </main>
+          <Analytics />
         </div>
       );
     }
@@ -107,6 +114,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-slate-50">
         <Navbar user={user} onLogout={handleLogout} setView={setView} currentView={view} />
         <StaffDashboardHome user={user} resources={resources} />
+        <Analytics />
       </div>
     );
   }
@@ -283,6 +291,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </footer>
+      <Analytics />
     </div>
   );
 };
