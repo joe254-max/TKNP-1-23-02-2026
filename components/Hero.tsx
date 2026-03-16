@@ -7,9 +7,10 @@ interface HeroProps {
   onSearch: (q: string) => void;
   onBrowse: () => void;
   onViewDashboard: (tab?: 'PHYSICAL' | 'ONLINE') => void;
+  onOpenClassnet: () => void;
 }
 
-const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard }) => {
+const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, onOpenClassnet }) => {
   const [val, setVal] = useState('');
 
   const getGreeting = () => {
@@ -57,15 +58,32 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard }
             <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white">My Class</span>
           </button>
 
-          <button 
-            className="group px-6 sm:px-10 py-4 sm:py-5 bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-3 sm:gap-4 hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
-            onClick={onBrowse}
-          >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
-              <LibraryIcon size={18} className="sm:w-5 sm:h-5" />
-            </div>
-            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white">Library</span>
-          </button>
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <button 
+              className="group px-6 sm:px-10 py-4 sm:py-5 bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-3 sm:gap-4 hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+              onClick={onBrowse}
+            >
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
+                <LibraryIcon size={18} className="sm:w-5 sm:h-5" />
+              </div>
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white">Library</span>
+            </button>
+
+            <button 
+              className="group px-6 sm:px-10 py-4 sm:py-5 bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-3 sm:gap-4 hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+              onClick={onOpenClassnet}
+            >
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
+                <img
+                  src="/classnet-logo.png"
+                  alt="Classnet"
+                  className="w-5 h-5 sm:w-6 sm:h-6 object-contain"
+                  draggable={false}
+                />
+              </div>
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white">Classnet</span>
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto group">

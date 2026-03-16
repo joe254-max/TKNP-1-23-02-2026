@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { LayoutDashboard, GraduationCap, Library, LogOut, Menu, X, UserCircle, PlayCircle } from 'lucide-react';
 
-type ViewType = 'home' | 'browse' | 'dashboard' | 'profile' | 'recordings';
+type ViewType = 'home' | 'browse' | 'dashboard' | 'profile' | 'recordings' | 'classnet';
 
 interface NavbarProps {
   user: User;

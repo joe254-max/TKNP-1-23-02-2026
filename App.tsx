@@ -10,6 +10,7 @@ import Login from './components/Login.tsx';
 import StudentClasses from './components/StudentClasses.tsx';
 import Profile from './components/Profile.tsx';
 import RecordedClassesLibrary from './components/RecordedClassesLibrary.tsx';
+import Classnet from './components/Classnet.tsx';
 import { BookOpen, Search, X } from 'lucide-react';
 
 const getLecturerPreview = () => {
@@ -24,16 +25,15 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ResourceType | 'ALL'>('ALL');
-  const [view, setView] = useState<'home' | 'browse' | 'dashboard' | 'profile' | 'recordings'>('home');
+  const [view, setView] = useState<'home' | 'browse' | 'dashboard' | 'profile' | 'recordings' | 'classnet'>('home');
   const [studentDashTab, setStudentDashTab] = useState<'PHYSICAL' | 'ONLINE'>('PHYSICAL');
   const isLecturerPreview = getLecturerPreview();
 
   // Persistence of login
   useEffect(() => {
-    const savedUser = localStorage.getItem('poly_library_user') || sessionStorage.getItem('poly_library_user');
-    
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
+    const currentSessionUser = sessionStorage.getItem('poly_library_user_current');
+    if (currentSessionUser) {
+      const parsedUser = JSON.parse(currentSessionUser);
       setUser(parsedUser);
       if (parsedUser.role !== UserRole.STUDENT) {
         setView('dashboard');
@@ -60,14 +60,8 @@ const App: React.FC = () => {
   const handleLogin = (u: User, remember: boolean) => {
     setUser(u);
     const userStr = JSON.stringify(u);
-    
-    if (remember) {
-      localStorage.setItem('poly_library_user', userStr);
-      sessionStorage.removeItem('poly_library_user');
-    } else {
-      sessionStorage.setItem('poly_library_user', userStr);
-      localStorage.removeItem('poly_library_user');
-    }
+
+    sessionStorage.setItem('poly_library_user_current', userStr);
 
     if (u.role !== UserRole.STUDENT) {
       setView('dashboard');
@@ -78,8 +72,7 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('poly_library_user');
-    sessionStorage.removeItem('poly_library_user');
+    sessionStorage.removeItem('poly_library_user_current');
     setView('home');
   };
 
@@ -131,7 +124,11 @@ const App: React.FC = () => {
           />
         )}
         
-        <div className={`flex-1 p-4 md:p-10 overflow-y-auto bg-slate-50/50 ${view === 'dashboard' ? 'max-w-screen-2xl mx-auto w-full' : ''}`}>
+        <div
+          className={`flex-1 overflow-y-auto bg-slate-50/50 ${
+            view === 'classnet' ? 'p-0' : 'p-4 md:p-10'
+          } ${view === 'dashboard' ? 'max-w-screen-2xl mx-auto w-full' : ''}`}
+        >
           {view === 'home' && (
             <>
               <Hero 
@@ -139,6 +136,7 @@ const App: React.FC = () => {
                 onSearch={setSearchQuery} 
                 onBrowse={() => setView('browse')} 
                 onViewDashboard={() => navigateToStudentDashboard('PHYSICAL')}
+                onOpenClassnet={() => setView('classnet')}
               />
               <div className="mt-8 sm:mt-16">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 mb-6 sm:mb-8">
@@ -230,6 +228,10 @@ const App: React.FC = () => {
 
           {view === 'recordings' && (
             <RecordedClassesLibrary />
+          )}
+
+          {view === 'classnet' && (
+            <Classnet user={user} onExit={() => setView('home')} />
           )}
         </div>
       </main>

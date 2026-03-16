@@ -505,29 +505,6 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
       broadcasterPeersRef.current[studentId] = state;
       return state;
     };
-
-    socket.on('signal', async (msg: any) => {
-      if (!msg || msg.classId !== classId) return;
-      if (msg.role !== 'student') return;
-      if (!msg.from) return;
-      const studentId = msg.from as string;
-      try {
-        if (msg.type === 'join') {
-          const state = await ensurePeer(studentId);
-          const offer = await state.pc.createOffer();
-          await state.pc.setLocalDescription(offer);
-          try { socket.emit('signal', { type: 'offer', classId, role: 'teacher', from: user.id, to: studentId, sdp: state.pc.localDescription ? { type: state.pc.localDescription.type, sdp: state.pc.localDescription.sdp } : null }); } catch {}
-        } else if (msg.type === 'answer' && msg.sdp) {
-          const state = broadcasterPeersRef.current[studentId];
-          if (state) await state.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-        } else if (msg.type === 'candidate' && msg.candidate) {
-          const state = await ensurePeer(studentId);
-          await state.pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-        }
-      } catch {
-        // ignore
-      }
-    });
     startRecording();
   };
 

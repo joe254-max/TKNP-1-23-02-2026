@@ -364,7 +364,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl">
                     <button
                       type="button"
-                      onClick={() => { setRole(UserRole.STUDENT); setIs2FAEnabled(false); }}
+                      onClick={() => { setRole(UserRole.STUDENT); setIs2Enabled(false); }}
                       className={`py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all ${role === UserRole.STUDENT ? 'bg-white text-[#3d0413] shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                       Student
