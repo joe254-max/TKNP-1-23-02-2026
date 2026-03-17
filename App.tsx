@@ -25,7 +25,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ResourceType | 'ALL'>('ALL');
-  const [view, setView] = useState<'home' | 'browse' | 'dashboard' | 'profile' | 'recordings' | 'classnet'>('home');
+  const [view, setView] = useState<'home' | 'browse' | 'dashboard' | 'classes' | 'profile' | 'recordings' | 'classnet'>('home');
   const [studentDashTab, setStudentDashTab] = useState<'PHYSICAL' | 'ONLINE'>('PHYSICAL');
   const isLecturerPreview = getLecturerPreview();
 
@@ -78,7 +78,7 @@ const App: React.FC = () => {
 
   const navigateToStudentDashboard = (tab: 'PHYSICAL' | 'ONLINE' = 'PHYSICAL') => {
     setStudentDashTab(tab);
-    setView('dashboard');
+    setView('classes');
   };
 
   if (!user) {
@@ -110,8 +110,8 @@ const App: React.FC = () => {
         user={user} 
         onLogout={handleLogout} 
         setView={(v) => {
-          if (v === 'dashboard') navigateToStudentDashboard('PHYSICAL');
-          else setView(v);
+          if (v === 'classes') navigateToStudentDashboard('PHYSICAL');
+          else setView(v as any);
         }} 
         currentView={view} 
       />
@@ -127,9 +127,9 @@ const App: React.FC = () => {
         <div
           className={`flex-1 overflow-y-auto bg-slate-50/50 ${
             view === 'classnet' ? 'p-0' : 'p-4 md:p-10'
-          } ${view === 'dashboard' ? 'max-w-screen-2xl mx-auto w-full' : ''}`}
+          } ${view === 'dashboard' || view === 'classes' ? 'max-w-screen-2xl mx-auto w-full' : ''}`}
         >
-          {view === 'home' && (
+          {(view === 'home' || view === 'dashboard') && (
             <>
               <Hero 
                 user={user} 
@@ -218,7 +218,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {view === 'dashboard' && user.role === UserRole.STUDENT && (
+          {view === 'classes' && user.role === UserRole.STUDENT && (
             <StudentClasses initialTab={studentDashTab} onNavigateToProfile={() => setView('profile')} />
           )}
 

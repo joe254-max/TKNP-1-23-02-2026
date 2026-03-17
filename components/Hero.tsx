@@ -85,7 +85,7 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
 
         <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4 mb-6 sm:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000 bg-[rgba(196,186,189,0.2)]">
           <button 
-            className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+            className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-white/5 border border-white/10 backdrop-blur-xl rounded-none flex items-center justify-center overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
             onClick={() => onViewDashboard('PHYSICAL')}
           >
             <img
@@ -118,7 +118,7 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
 
           <div className="flex flex-col gap-3 sm:gap-4">
             <button 
-              className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-white/5 border border-[rgba(252,252,252,0.1)] text-[rgba(63,13,13,1)] font-thin backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+              className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-white/5 border border-[rgba(252,252,252,0.1)] text-[rgba(63,13,13,1)] font-thin backdrop-blur-xl rounded-none flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
               onClick={onBrowse}
             >
               <img
@@ -131,7 +131,7 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
                   height: '100%',
                   margin: 0,
                   overflow: 'visible',
-                  borderRadius: 4,
+                  borderRadius: 0,
                   boxSizing: 'border-box',
                   backgroundColor: 'rgba(255, 255, 255, 1)',
                   borderWidth: 1,
@@ -146,7 +146,7 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
             </button>
 
             <button 
-              className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-[rgba(79,17,17,0.05)] border border-[rgba(92,16,16,0.1)] text-[#521414] backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+              className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-[rgba(79,17,17,0.05)] border border-[rgba(92,16,16,0.1)] text-[#521414] backdrop-blur-xl rounded-none flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
               onClick={onOpenClassnet}
               style={{ backgroundClip: 'unset', WebkitBackgroundClip: 'unset' }}
             >

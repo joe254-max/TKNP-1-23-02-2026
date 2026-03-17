@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { LayoutDashboard, GraduationCap, Library, LogOut, Menu, X, UserCircle, PlayCircle } from 'lucide-react';
 
-type ViewType = 'home' | 'browse' | 'dashboard' | 'profile' | 'recordings' | 'classnet';
+type ViewType = 'home' | 'browse' | 'dashboard' | 'classes' | 'profile' | 'recordings' | 'classnet';
 
 interface NavbarProps {
   user: User;
@@ -25,7 +25,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
       <div className="flex items-center justify-between">
         <div 
           className="flex items-center gap-2 sm:gap-3 cursor-pointer group" 
-          onClick={() => handleNavClick(isStudent ? 'home' : 'dashboard')}
+          onClick={() => handleNavClick('dashboard')}
         >
           <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-lg flex items-center justify-center shrink-0 shadow-md border border-slate-200 overflow-hidden">
             <img
@@ -47,9 +47,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
 
         <div className="hidden lg:flex items-center gap-4">
           <button 
-            onClick={() => handleNavClick(isStudent ? 'home' : 'dashboard')}
+            onClick={() => handleNavClick('dashboard')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              (isStudent && currentView === 'home') || (!isStudent && currentView === 'dashboard') 
+              currentView === 'dashboard'
                 ? 'bg-[#fdf2f2] text-[#3d0413]' 
                 : 'text-slate-500 hover:text-slate-800'
             }`}
@@ -59,9 +59,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
           </button>
           
           <button 
-            onClick={() => handleNavClick('dashboard')}
+            onClick={() => handleNavClick(isStudent ? 'classes' : 'dashboard')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                currentView === 'dashboard' ? 'bg-[#fdf2f2] text-[#3d0413]' : 'text-slate-500 hover:text-slate-800'
+                (isStudent ? currentView === 'classes' : currentView === 'dashboard')
+                  ? 'bg-[#fdf2f2] text-[#3d0413]'
+                  : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             <GraduationCap size={14} />
@@ -122,9 +124,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
         <div className="lg:hidden mt-3 pt-3 border-t border-slate-100 animate-in slide-in-from-top-2 duration-200">
           <div className="flex flex-col gap-2">
             <button 
-              onClick={() => handleNavClick(isStudent ? 'home' : 'dashboard')}
+              onClick={() => handleNavClick('dashboard')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${
-                (isStudent && currentView === 'home') || (!isStudent && currentView === 'dashboard') 
+                currentView === 'dashboard'
                   ? 'bg-[#fdf2f2] text-[#3d0413]' 
                   : 'text-slate-500 hover:bg-slate-50'
               }`}
@@ -134,9 +136,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
             </button>
             
             <button 
-              onClick={() => handleNavClick('dashboard')}
+              onClick={() => handleNavClick(isStudent ? 'classes' : 'dashboard')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${
-                  currentView === 'dashboard' ? 'bg-[#fdf2f2] text-[#3d0413]' : 'text-slate-500 hover:bg-slate-50'
+                  (isStudent ? currentView === 'classes' : currentView === 'dashboard')
+                    ? 'bg-[#fdf2f2] text-[#3d0413]'
+                    : 'text-slate-500 hover:bg-slate-50'
               }`}
             >
               <GraduationCap size={16} />
