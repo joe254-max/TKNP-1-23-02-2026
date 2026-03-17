@@ -885,25 +885,39 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
 
             <div className="mt-4 space-y-1">
               {[
-                { label: 'Home', icon: <Home size={18} />, onClick: () => navigate('HOME') },
-                { label: 'Watch', icon: <MonitorPlay size={18} />, onClick: () => navigate('VIDEO') },
-                { label: 'Live', icon: <Video size={18} />, onClick: () => navigate('LIVE') },
-                { label: 'Marketplace', icon: <Store size={18} />, onClick: () => navigate('MARKET') },
-                { label: 'Groups', icon: <UsersRound size={18} />, onClick: () => navigate('GROUPS') },
-                { label: 'Events', icon: <Calendar size={18} />, onClick: () => navigate('EVENTS') },
-              ].map((it) => (
+                { key: 'HOME' as const, label: 'Home', icon: <Home size={18} />, onClick: () => navigate('HOME') },
+                { key: 'VIDEO' as const, label: 'Watch', icon: <MonitorPlay size={18} />, onClick: () => navigate('VIDEO') },
+                { key: 'LIVE' as const, label: 'Live', icon: <Video size={18} />, onClick: () => navigate('LIVE') },
+                { key: 'MARKET' as const, label: 'Marketplace', icon: <Store size={18} />, onClick: () => navigate('MARKET') },
+                { key: 'GROUPS' as const, label: 'Groups', icon: <UsersRound size={18} />, onClick: () => navigate('GROUPS') },
+                { key: 'EVENTS' as const, label: 'Events', icon: <Calendar size={18} />, onClick: () => navigate('EVENTS') },
+              ].map((it) => {
+                const active = tab === it.key;
+                return (
                 <button
-                  key={it.label}
+                  key={it.key}
                   type="button"
                   onClick={it.onClick}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-100 transition text-slate-800 font-bold"
+                  aria-current={active ? 'page' : undefined}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition font-bold border ${
+                    active
+                      ? 'bg-[#e7f3ff] border-[#2563eb]/20 text-slate-900'
+                      : 'bg-transparent border-transparent text-slate-800 hover:bg-slate-100'
+                  }`}
                 >
-                  <span className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700">
+                  <span
+                    className={`w-9 h-9 rounded-full border flex items-center justify-center ${
+                      active
+                        ? 'bg-[#2563eb] border-[#2563eb] text-white'
+                        : 'bg-slate-100 border-slate-200 text-slate-700'
+                    }`}
+                  >
                     {it.icon}
                   </span>
                   <span className="text-sm">{it.label}</span>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
 

@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { User } from '../types';
-import { School, Library as LibraryIcon } from 'lucide-react';
 
 interface HeroProps {
   user: User;
@@ -12,6 +11,35 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, onOpenClassnet }) => {
   const [val, setVal] = useState('');
+  const firstName = useMemo(() => (user.name || '').trim().split(/\s+/)[0] || 'Friend', [user.name]);
+  const targetTyped = useMemo(() => `Hello, ${firstName}`, [firstName]);
+  const [typed, setTyped] = useState('');
+  const [typingDone, setTypingDone] = useState(false);
+
+  useEffect(() => {
+    setTyped('');
+    setTypingDone(false);
+
+    const totalMs = 3000;
+    const len = Math.max(1, targetTyped.length);
+    const start = performance.now();
+    let rafId = 0;
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / totalMs);
+      const i = Math.floor(t * len);
+      setTyped(targetTyped.slice(0, i));
+      if (t >= 1) {
+        setTyped(targetTyped);
+        setTypingDone(true);
+        return;
+      }
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [targetTyped]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -38,50 +66,116 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.4em] text-rose-300">Institutional Digital Hub</span>
         </div>
         <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black mb-4 sm:mb-8 leading-[1.1] tracking-tighter uppercase">
-          {getGreeting()}, <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-red-600 break-words">
-            {user.name}
+          <span className="crt-hero">
+            <span className={`crt-scanline ${typed.length > 0 ? 'crt-scanline--run' : ''}`} aria-hidden="true" />
+            <span className="text-white break-words">
+              {typed.split(firstName)[0]}
+              <span className={typingDone ? 'crt-underline crt-underline--pulse' : 'crt-underline'}>
+                {typed.endsWith(firstName) ? firstName : typed.includes(firstName) ? firstName : ''}
+              </span>
+              {typed.includes(firstName) ? typed.slice(typed.indexOf(firstName) + firstName.length) : ''}
+            </span>
+            {!typingDone && <span className="crt-cursor" aria-hidden="true">▍</span>}
           </span>
+          <span className="wave-hand" aria-hidden="true">👋</span>
         </h1>
-        <p className="text-slate-400 text-sm sm:text-base md:text-lg lg:text-xl mb-6 sm:mb-12 max-w-2xl mx-auto font-medium leading-relaxed px-2">
+        <p className="crt-subtext text-slate-400 text-sm sm:text-base md:text-lg lg:text-xl mb-6 sm:mb-12 max-w-2xl mx-auto font-medium leading-relaxed px-2">
           The ultimate repository of lecture notes, past exams, and technical manuals specifically curated for the polytechnic community.
         </p>
 
-        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4 mb-6 sm:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4 mb-6 sm:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000 bg-[rgba(196,186,189,0.2)]">
           <button 
-            className="group px-6 sm:px-10 py-4 sm:py-5 bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-3 sm:gap-4 hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+            className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
             onClick={() => onViewDashboard('PHYSICAL')}
           >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
-              <School size={18} className="sm:w-5 sm:h-5" />
-            </div>
-            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white">My Class</span>
+            <img
+              src="/myclasslogo.jpg"
+              alt="My Class"
+              className="w-full h-full object-contain"
+              draggable={false}
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'flex-start',
+                alignItems: 'flex-start',
+                margin: 0,
+                overflow: 'visible',
+                borderRadius: 0,
+                boxSizing: 'border-box',
+                backgroundColor: 'rgba(0, 0, 0, 1)',
+                borderWidth: 1,
+                borderStyle: 'solid',
+                borderColor: 'rgba(0, 0, 0, 1)',
+                borderImage: 'radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 1) 0%, rgba(255, 255, 255, 1) 100%) 1',
+                boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)',
+                padding: 0,
+                color: 'rgba(255, 255, 255, 1)',
+              }}
+            />
           </button>
 
           <div className="flex flex-col gap-3 sm:gap-4">
             <button 
-              className="group px-6 sm:px-10 py-4 sm:py-5 bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-3 sm:gap-4 hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+              className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-white/5 border border-[rgba(252,252,252,0.1)] text-[rgba(63,13,13,1)] font-thin backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
               onClick={onBrowse}
             >
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
-                <LibraryIcon size={18} className="sm:w-5 sm:h-5" />
-              </div>
-              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white">Library</span>
+              <img
+                src="/e-library.jpg"
+                alt="Library"
+                className="w-full h-full object-cover"
+                draggable={false}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  margin: 0,
+                  overflow: 'visible',
+                  borderRadius: 4,
+                  boxSizing: 'border-box',
+                  backgroundColor: 'rgba(255, 255, 255, 1)',
+                  borderWidth: 1,
+                  borderStyle: 'solid',
+                  borderColor: 'rgba(255, 255, 255, 1)',
+                  boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)',
+                  padding: 0,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                }}
+              />
             </button>
 
             <button 
-              className="group px-6 sm:px-10 py-4 sm:py-5 bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-3 sm:gap-4 hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+              className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-[rgba(79,17,17,0.05)] border border-[rgba(92,16,16,0.1)] text-[#521414] backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
               onClick={onOpenClassnet}
+              style={{ backgroundClip: 'unset', WebkitBackgroundClip: 'unset' }}
             >
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
+              <span className="shine-wrap">
                 <img
-                  src="/classnet-logo.png"
-                  alt="Classnet"
-                  className="w-5 h-5 sm:w-6 sm:h-6 object-contain"
+                  src="/bondify.png"
+                  alt="Bondify"
+                  className="w-full h-full object-contain"
                   draggable={false}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    margin: 0,
+                    overflow: 'hidden',
+                    borderRadius: 0,
+                    boxSizing: 'content-box',
+                    backgroundColor: 'rgba(255, 255, 255, 1)',
+                    borderWidth: 1,
+                    borderStyle: 'solid',
+                    borderColor: 'rgba(0, 0, 0, 1)',
+                    borderImage: 'linear-gradient(90deg, rgba(223, 216, 216, 1) 0%, rgba(0, 0, 0, 1) 100%) 1',
+                    boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)',
+                    padding: 0,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    color: 'rgba(118, 25, 25, 1)',
+                  }}
                 />
-              </div>
-              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white">Classnet</span>
+              </span>
             </button>
           </div>
         </div>
