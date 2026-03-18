@@ -562,23 +562,23 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
   return (
     <div className="min-h-full bg-[#f0f2f5]">
       {/* Top bar (Facebook-like) */}
-      <div className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-screen-2xl mx-auto px-3 sm:px-4 md:px-6 py-2.5 grid grid-cols-[auto_1fr_auto] items-center gap-3 min-w-0">
+      <div className="sticky top-0 z-40 bg-[#3d0413] border-b border-[#3d0413] shadow-sm">
+        <div className="w-full h-[100px] px-0 grid grid-cols-[auto_1fr_auto] items-center gap-0 min-w-0 rounded-[28px] bg-gradient-to-r from-[#3d0413] via-[#3d0413]/70 to-white/95 border border-white/15 shadow-[0_18px_50px_-28px_rgba(0,0,0,0.85)] backdrop-blur-md">
           {/* Left */}
-          <div className="flex items-center gap-3 pr-2 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-              <img src="/classnet-logo.png" alt="Classnet" className="w-full h-full object-contain" draggable={false} />
+          <div className="flex items-center gap-2 pr-2 min-w-0">
+            <div className="w-24 h-24 md:w-[100px] md:h-[100px] flex items-center justify-center shrink-0">
+              <img src="/bondify.png" alt="Bondify" className="w-full h-full object-contain rounded-full bondify-glow" draggable={false} />
             </div>
 
             {/* Desktop search (Facebook-style) */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-full bg-slate-100 border border-slate-200 w-[360px] max-w-[40vw] min-w-0">
-              <Search size={16} className="text-slate-400 shrink-0" />
+            <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-full bg-black/25 border border-white/10 w-[360px] max-w-[40vw] min-w-0 shadow-sm backdrop-blur-md focus-within:ring-4 focus-within:ring-white/10 transition">
+              <Search size={16} className="text-white/70 shrink-0" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               onFocus={() => setPeopleSearchOpen(true)}
                 placeholder="Search Classnet"
-                className="bg-transparent outline-none w-full text-sm font-bold text-slate-700 placeholder:text-slate-400"
+                className="bg-transparent outline-none w-full text-sm font-bold text-white/90 placeholder:text-white/50"
               />
             </div>
 
@@ -620,7 +620,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                         <p className="text-sm font-black text-slate-900 truncate">{p.displayName}</p>
                         <p className="text-xs font-bold text-slate-500 truncate">{p.headline || 'Classnet user'}</p>
                       </div>
-                      <span className="text-xs font-black text-[#2563eb]">View</span>
+                      <span className="text-xs font-black text-[#3d0413]">View</span>
                     </button>
                   ))}
                 </div>
@@ -644,12 +644,12 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                 type="button"
                 onClick={() => navigate(item.key)}
                 className={`relative w-14 h-10 rounded-2xl flex items-center justify-center transition-all ${
-                  tab === item.key ? 'text-[#2563eb]' : 'text-slate-500 hover:text-slate-800'
-                } hover:bg-slate-100 active:scale-95`}
+                  tab === item.key ? 'text-white' : 'text-white/70 hover:text-white'
+                } hover:bg-white/10 active:scale-95`}
                 title={item.label}
               >
                 {item.icon}
-                {tab === item.key && <span className="absolute -bottom-2 left-2 right-2 h-1.5 rounded-full bg-[#2563eb]" />}
+                {tab === item.key && <span className="absolute -bottom-2 left-2 right-2 h-1.5 rounded-full bg-white" />}
               </button>
             ))}
             </div>
@@ -662,7 +662,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
               <button
                 type="button"
                 onClick={() => setSearchOpen((v) => !v)}
-                className="md:hidden p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition"
+                className="md:hidden p-2.5 rounded-full bg-black/25 hover:bg-black/30 border border-white/10 text-white/90 active:scale-95 transition shadow-sm backdrop-blur-md"
                 title="Search"
               >
                 <Search size={18} />
@@ -718,7 +718,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
             <div className="relative" ref={appsRef}>
               <button
                 type="button"
-                className="hidden sm:inline-flex p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition"
+                className="hidden sm:inline-flex p-2.5 rounded-full bg-black/25 hover:bg-black/30 border border-white/10 text-white/90 active:scale-95 transition shadow-sm backdrop-blur-md"
                 title="Apps"
                 onClick={() => setAppsOpen((v) => !v)}
               >
@@ -767,7 +767,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
             </div>
             <button
               type="button"
-              className="hidden sm:inline-flex p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition"
+              className="hidden sm:inline-flex p-2.5 rounded-full bg-black/25 hover:bg-black/30 border border-white/10 text-white/90 active:scale-95 transition shadow-sm backdrop-blur-md"
               title="Messenger"
               onClick={() => navigate('MESSAGES')}
             >
@@ -776,7 +776,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
             <div className="relative" ref={notifsRef}>
               <button
                 type="button"
-                className="p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition relative"
+                className="p-2.5 rounded-full bg-black/25 hover:bg-black/30 border border-white/10 text-white/90 active:scale-95 transition relative shadow-sm backdrop-blur-md"
                 title="Notifications"
                 onClick={() => setNotifsOpen((v) => !v)}
               >
@@ -815,13 +815,13 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                 </div>
               )}
             </div>
-            <button type="button" className="hidden sm:inline-flex p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition" title="Create post" onClick={() => setComposerOpen(true)}>
+            <button type="button" className="hidden sm:inline-flex p-2.5 rounded-full bg-black/25 hover:bg-black/30 border border-white/10 text-white/90 active:scale-95 transition shadow-sm backdrop-blur-md" title="Create post" onClick={() => setComposerOpen(true)}>
               <Send size={18} />
             </button>
-            <button type="button" className="hidden sm:inline-flex p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition" title="Settings" onClick={() => navigate('SETTINGS')}>
+            <button type="button" className="hidden sm:inline-flex p-2.5 rounded-full bg-black/25 hover:bg-black/30 border border-white/10 text-white/90 active:scale-95 transition shadow-sm backdrop-blur-md" title="Settings" onClick={() => navigate('SETTINGS')}>
               <Settings size={18} />
             </button>
-            <button type="button" className="hidden sm:inline-flex p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition" title="Profile" onClick={() => navigate('PROFILE')}>
+            <button type="button" className="hidden sm:inline-flex p-2.5 rounded-full bg-black/25 hover:bg-black/30 border border-white/10 text-white/90 active:scale-95 transition shadow-sm backdrop-blur-md" title="Profile" onClick={() => navigate('PROFILE')}>
               <UserCircle size={18} />
             </button>
           </div>
@@ -901,14 +901,14 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                   aria-current={active ? 'page' : undefined}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition font-bold border ${
                     active
-                      ? 'bg-[#e7f3ff] border-[#2563eb]/20 text-slate-900'
+                      ? 'bg-[#fdf2f2] border-[#3d0413]/20 text-slate-900'
                       : 'bg-transparent border-transparent text-slate-800 hover:bg-slate-100'
                   }`}
                 >
                   <span
                     className={`w-9 h-9 rounded-full border flex items-center justify-center ${
                       active
-                        ? 'bg-[#2563eb] border-[#2563eb] text-white'
+                        ? 'bg-[#3d0413] border-[#3d0413] text-white'
                         : 'bg-slate-100 border-slate-200 text-slate-700'
                     }`}
                   >
@@ -924,7 +924,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-black text-slate-900">Notifications</p>
-              <button type="button" className="text-sm font-bold text-[#2563eb] hover:underline" onClick={() => setNotifsOpen(true)}>See all</button>
+              <button type="button" className="text-sm font-bold text-[#3d0413] hover:underline" onClick={() => setNotifsOpen(true)}>See all</button>
             </div>
             {notifs.length === 0 ? (
               <p className="text-sm font-bold text-slate-400">No notifications yet.</p>
@@ -1071,7 +1071,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                   <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
                     <div className="flex items-center gap-3">
                       <span className="inline-flex items-center gap-1.5">
-                        <ThumbsUp size={14} className="text-blue-600" /> {likes}
+                        <ThumbsUp size={14} className="text-[#3d0413]" /> {likes}
                       </span>
                       <span className="inline-flex items-center gap-1.5">
                         <Heart size={14} className="text-rose-600" /> {hearts}
@@ -1085,7 +1085,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                       type="button"
                       onClick={() => toggleReaction(p.id, 'LIKE')}
                       className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition ${
-                        myLike ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-100 text-slate-700'
+                        myLike ? 'bg-[#fdf2f2] text-[#3d0413]' : 'hover:bg-slate-100 text-slate-700'
                       }`}
                     >
                       <ThumbsUp size={14} /> Like
@@ -1137,7 +1137,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-black text-slate-900">Friend requests</p>
-              <button type="button" className="text-sm font-bold text-[#2563eb] hover:underline" onClick={() => addNotif('Friend requests need backend.')}>See all</button>
+              <button type="button" className="text-sm font-bold text-[#3d0413] hover:underline" onClick={() => addNotif('Friend requests need backend.')}>See all</button>
             </div>
             <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
               <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-black text-slate-700">A</div>
@@ -1146,7 +1146,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                 <p className="text-xs font-bold text-slate-500">16 mutual friends</p>
               </div>
               <div className="flex gap-2">
-                <button type="button" className="px-3 py-2 rounded-lg bg-[#2563eb] text-white text-xs font-black">Confirm</button>
+                <button type="button" className="px-3 py-2 rounded-lg bg-[#3d0413] text-white text-xs font-black">Confirm</button>
                 <button type="button" className="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 text-xs font-black">Delete</button>
               </div>
             </div>
@@ -1500,7 +1500,7 @@ const LiveHubPage: React.FC<{
                     <button
                       type="button"
                       onClick={() => { setActive(s); setView('THEATER'); }}
-                      className="px-5 py-3 rounded-xl bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-black uppercase tracking-widest shadow-xl border-b-4 border-black/70 active:scale-95 transition"
+                      className="px-5 py-3 rounded-xl bg-[#3d0413] hover:bg-[#2a020d] text-white text-xs font-black uppercase tracking-widest shadow-xl border-b-4 border-black/70 active:scale-95 transition"
                     >
                       Join
                     </button>
@@ -1513,7 +1513,7 @@ const LiveHubPage: React.FC<{
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-black text-slate-900">Scheduled</p>
-              <button type="button" className="text-sm font-bold text-[#2563eb] hover:underline" onClick={() => addNotif('Calendar integration can be added next.')}>
+              <button type="button" className="text-sm font-bold text-[#3d0413] hover:underline" onClick={() => addNotif('Calendar integration can be added next.')}>
                 Add reminder
               </button>
             </div>
@@ -2151,7 +2151,7 @@ const LiveTheater: React.FC<{
             }}
           >
             <input value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Write a message..." className="flex-1 px-4 py-3 rounded-full bg-slate-100 border border-slate-200 font-bold outline-none" />
-            <button type="submit" className="px-5 py-3 rounded-full bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-black active:scale-95 transition">
+            <button type="submit" className="px-5 py-3 rounded-full bg-[#3d0413] hover:bg-[#2a020d] text-white text-xs font-black active:scale-95 transition">
               Send
             </button>
           </form>
@@ -2687,7 +2687,7 @@ const ReelsViewer: React.FC<{ reels: Reel[] }> = ({ reels }) => {
               className="w-12 h-12 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center text-slate-800 hover:bg-slate-50 active:scale-95 transition"
               title="Like"
             >
-              <ThumbsUp size={20} className={isLiked ? 'text-blue-600' : ''} />
+              <ThumbsUp size={20} className={isLiked ? 'text-[#3d0413]' : ''} />
             </button>
             <span className="text-xs font-black text-slate-700">{likes}</span>
 
@@ -2740,7 +2740,7 @@ const ReelsViewer: React.FC<{ reels: Reel[] }> = ({ reels }) => {
                     <ul className="mt-2 space-y-2">
                       {(cur.takeaways?.length ? cur.takeaways : ['No takeaways yet.']).map((t, i) => (
                         <li key={`${cur.id}-t-${i}`} className="text-sm font-bold text-slate-800 flex gap-2">
-                          <span className="mt-1 w-2 h-2 rounded-full bg-[#2563eb] shrink-0" />
+                          <span className="mt-1 w-2 h-2 rounded-full bg-[#3d0413] shrink-0" />
                           <span>{t}</span>
                         </li>
                       ))}
@@ -2752,7 +2752,7 @@ const ReelsViewer: React.FC<{ reels: Reel[] }> = ({ reels }) => {
                       type="button"
                       onClick={() => setLiked((m) => ({ ...m, [cur.id]: !m[cur.id] }))}
                       className={`px-3 py-2.5 rounded-xl border text-xs font-black uppercase tracking-widest active:scale-95 transition ${
-                        isLiked ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'
+                        isLiked ? 'bg-[#fdf2f2] border-[#3d0413]/20 text-[#3d0413]' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'
                       }`}
                     >
                       Like
@@ -3228,7 +3228,7 @@ const ProfilePage: React.FC<{
                 <button
                   type="button"
                   onClick={() => addNotif('Join from profile: wire to Live theater next.')}
-                  className="px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-black"
+                  className="px-4 py-2 rounded-xl bg-[#3d0413] hover:bg-[#2a020d] text-white text-xs font-black"
                 >
                   Watch live
                 </button>
@@ -3408,7 +3408,7 @@ const StoriesRow: React.FC<{
               <MonitorPlay size={26} />
             </div>
 
-            <div className="absolute top-3 left-3 w-9 h-9 rounded-full border-2 border-[#2563eb] bg-white overflow-hidden flex items-center justify-center">
+            <div className="absolute top-3 left-3 w-9 h-9 rounded-full border-2 border-[#3d0413] bg-white overflow-hidden flex items-center justify-center">
               {s.imageDataUrl ? (
                 <img src={s.imageDataUrl} alt={s.authorName} className="w-full h-full object-cover" draggable={false} />
               ) : (
@@ -3417,7 +3417,7 @@ const StoriesRow: React.FC<{
             </div>
 
             {s.isMine && (
-              <div className="absolute bottom-11 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-[#2563eb] text-white flex items-center justify-center border-4 border-white shadow">
+              <div className="absolute bottom-11 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-[#3d0413] text-white flex items-center justify-center border-4 border-white shadow">
                 <span className="text-2xl leading-none font-black">+</span>
               </div>
             )}
