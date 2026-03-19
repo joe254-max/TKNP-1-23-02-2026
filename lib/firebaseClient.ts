@@ -3,12 +3,12 @@ import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || "AIzaSyDXaON0Ie0ybYf2DPtYFQMftmodnwjGw4I",
-  authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || "studio-5321791587-6245a.firebaseapp.com",
-  projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || "studio-5321791587-6245a",
-  storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || "studio-5321791587-6245a.firebasestorage.app",
-  messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "362872819261",
-  appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || undefined,
+  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || "AIzaSyAXmz2Equo4nrBImMQb2gUQQr3gkvnWdb8",
+  authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || "studio-3375051386-348a4.firebaseapp.com",
+  projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || "studio-3375051386-348a4",
+  storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || "studio-3375051386-348a4.firebasestorage.app",
+  messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "777399671763",
+  appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || "1:777399671763:web:812446eae727e8bca96d26",
 };
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig as any);
