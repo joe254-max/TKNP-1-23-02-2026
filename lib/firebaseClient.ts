@@ -1,4 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -10,9 +11,15 @@ const firebaseConfig = {
   appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || undefined,
 };
 
-if (!getApps().length) initializeApp(firebaseConfig as any);
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig as any);
 
 export const db = getFirestore();
+export const auth = getAuth(app);
+
+const googleProvider = new GoogleAuthProvider();
+export async function signInWithGooglePopup() {
+  return await signInWithPopup(auth, googleProvider);
+}
 
 export const signalsCollection = (classId: string) => collection(db, 'signals', classId, 'messages');
 export const signalsQuery = (classId: string) => query(signalsCollection(classId), orderBy('createdAt'));

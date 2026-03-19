@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserRole, User } from '../types';
 import { DEPARTMENTS } from '../constants';
 import { registerUserInDb, authenticateUserFromDb } from '../database';
+import { signInWithGooglePopup } from '../lib/firebaseClient';
 import { ShieldAlert, Fingerprint, Key, ArrowLeft, RefreshCw, CheckCircle2, Lock, Eye, EyeOff } from 'lucide-react';
 
 // Define the missing LoginProps interface
@@ -187,6 +188,31 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
 
       setErrorMessage('Invalid email or password. Please try again or register a new account.');
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setErrorMessage(null);
+    try {
+      const result = await signInWithGooglePopup();
+      const fbUser = result.user;
+      const derivedName =
+        fbUser.displayName ||
+        fbUser.email?.split('@')[0] ||
+        'Institutional User';
+
+      const appUser: User = {
+        id: fbUser.uid,
+        name: derivedName,
+        email: fbUser.email || email || 'unknown@googleuser',
+        role: role === UserRole.STUDENT ? UserRole.STUDENT : UserRole.LECTURER,
+      };
+
+      onLogin(appUser, rememberMe);
+    } catch (err) {
+      console.error('Google sign-in failed', err);
+      const msg = (err as any)?.message || 'Google sign-in failed. Please try again.';
+      setErrorMessage(msg);
     }
   };
 
@@ -462,6 +488,27 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   {mode === 'login' ? 'Authorize Access' : mode === 'register' ? 'Initialize Profile' : 'Dispatch Recovery'}
                 </button>
               </form>
+
+              {mode === 'login' && (
+                <div className="mt-4">
+                  <div className="flex items-center gap-4 my-4">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                      or
+                    </span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    className="w-full py-4 bg-white hover:bg-slate-50 text-slate-900 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] shadow-sm transition active:scale-95 border border-slate-200 flex items-center justify-center gap-3"
+                  >
+                    <Lock size={16} />
+                    Sign in with Google
+                  </button>
+                </div>
+              )}
 
               <div className="mt-12 text-center">
                 <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest">
