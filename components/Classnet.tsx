@@ -316,6 +316,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
   const reduceMotion = useReducedMotion();
 
   const profileKey = userScopedKey(STORAGE.PROFILE, user.id);
+  const storiesKey = userScopedKey('classnet_stories_v1', user.id);
   const [profile, setProfile] = useState<ClassnetProfile>(() => {
     const p = safeParse<ClassnetProfile | null>(localStorage.getItem(profileKey), null);
     return (
@@ -326,6 +327,62 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
       }
     );
   });
+
+  const [storyComposerOpen, setStoryComposerOpen] = useState(false);
+  const [storyMode, setStoryMode] = useState<'UPLOAD' | 'TEXT'>('UPLOAD');
+  const [storyAudience, setStoryAudience] = useState<'FRIENDS' | 'CLOSE_BONDS'>('FRIENDS');
+  const [storyText, setStoryText] = useState('');
+  const [storyCaption, setStoryCaption] = useState('');
+  const [storyMediaDataUrl, setStoryMediaDataUrl] = useState<string | null>(null);
+  const [storyError, setStoryError] = useState<string | null>(null);
+  const storyFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ''));
+      r.onerror = () => reject(new Error('Failed to read file'));
+      r.readAsDataURL(file);
+    });
+
+  const openStoryComposer = () => {
+    setStoryError(null);
+    setStoryMode('UPLOAD');
+    setStoryAudience('FRIENDS');
+    setStoryText('');
+    setStoryCaption('');
+    setStoryMediaDataUrl(null);
+    setStoryComposerOpen(true);
+  };
+
+  const publishStory = () => {
+    setStoryError(null);
+    try {
+      const now = Date.now();
+      const expiresAt = now + 24 * 60 * 60 * 1000;
+      const next = {
+        id: `story-${now}`,
+        createdAt: new Date(now).toISOString(),
+        expiresAt: new Date(expiresAt).toISOString(),
+        audience: storyAudience,
+        caption: storyCaption.trim() || null,
+        text: storyMode === 'TEXT' ? (storyText.trim() || null) : null,
+        mediaDataUrl: storyMode === 'UPLOAD' ? storyMediaDataUrl : null,
+      };
+
+      const existing = safeParse<any[]>(localStorage.getItem(storiesKey), []);
+      const kept = existing.filter((s) => {
+        const exp = Date.parse(s?.expiresAt || '');
+        return Number.isFinite(exp) ? exp > now : false;
+      });
+      kept.unshift(next);
+      localStorage.setItem(storiesKey, JSON.stringify(kept.slice(0, 50)));
+      setStoryComposerOpen(false);
+      addNotif('Story published to your ring.');
+    } catch (e) {
+      setStoryError((e as Error).message || 'Failed to publish story');
+    }
+  };
   const [peopleResults, setPeopleResults] = useState<{ userId: string; displayName: string; headline?: string | null; avatarUrl?: string | null }[]>([]);
   const [peopleSearchOpen, setPeopleSearchOpen] = useState(false);
   const [viewedUserId, setViewedUserId] = useState<string | null>(null);
@@ -561,6 +618,169 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
 
   return (
     <div className="min-h-full bg-[#f0f2f5]">
+      {storyComposerOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setStoryComposerOpen(false)}
+            aria-label="Close story composer"
+          />
+          <div className="relative w-full max-w-3xl bg-white rounded-[2rem] border border-slate-200 shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Bondify</p>
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 truncate">Create my story</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStoryComposerOpen(false)}
+                className="p-2 rounded-2xl bg-slate-100 hover:bg-slate-200 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className="rounded-[1.5rem] bg-slate-950 overflow-hidden border border-slate-900/10 relative min-h-[320px]">
+                {storyMode === 'UPLOAD' ? (
+                  storyMediaDataUrl ? (
+                    <>
+                      <img src={storyMediaDataUrl} alt="Story preview" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white/80 text-center p-6">
+                      <MonitorPlay size={32} />
+                      <p className="mt-3 text-sm font-black uppercase tracking-widest">Upload photo</p>
+                      <p className="mt-2 text-xs font-bold text-white/60 max-w-xs">
+                        Choose a professional campus moment. (Images only for now.)
+                      </p>
+                    </div>
+                  )
+                ) : (
+                  <div className="absolute inset-0 p-8 flex items-center justify-center">
+                    <div className="w-full rounded-[1.5rem] bg-white/10 border border-white/10 backdrop-blur-xl p-6 text-white">
+                      <p className="text-xs font-black uppercase tracking-widest text-white/70">Text story</p>
+                      <p className="mt-3 text-2xl sm:text-3xl font-black leading-tight whitespace-pre-wrap break-words">
+                        {storyText.trim() ? storyText : 'Type something…'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                {storyError && (
+                  <div className="px-4 py-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-black uppercase tracking-widest">
+                    {storyError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => setStoryMode('UPLOAD')}
+                    className={`py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all ${
+                      storyMode === 'UPLOAD' ? 'bg-white text-[#3d0413] shadow-xl' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Upload
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStoryMode('TEXT')}
+                    className={`py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all ${
+                      storyMode === 'TEXT' ? 'bg-white text-[#3d0413] shadow-xl' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Text
+                  </button>
+                </div>
+
+                {storyMode === 'UPLOAD' ? (
+                  <>
+                    <input
+                      ref={storyFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        try {
+                          const dataUrl = await fileToDataUrl(f);
+                          setStoryMediaDataUrl(dataUrl);
+                        } catch (err) {
+                          setStoryError((err as Error).message || 'Failed to load image');
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => storyFileInputRef.current?.click()}
+                      className="w-full px-5 py-4 rounded-2xl bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase tracking-widest shadow-xl border-b-4 border-black/90 active:scale-95 transition"
+                    >
+                      Choose photo
+                    </button>
+                  </>
+                ) : (
+                  <textarea
+                    value={storyText}
+                    onChange={(e) => setStoryText(e.target.value)}
+                    placeholder="Write something positive…"
+                    className="w-full min-h-[140px] px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10 focus:border-[#3d0413]/50 transition"
+                  />
+                )}
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Audience</p>
+                  <select
+                    value={storyAudience}
+                    onChange={(e) => setStoryAudience(e.target.value as any)}
+                    className="w-full px-5 py-4 rounded-2xl bg-white border border-slate-200 font-bold outline-none"
+                  >
+                    <option value="FRIENDS">Friends</option>
+                    <option value="CLOSE_BONDS">Close bonds</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Caption (optional)</p>
+                  <input
+                    value={storyCaption}
+                    onChange={(e) => setStoryCaption(e.target.value)}
+                    placeholder="Add a short context…"
+                    className="w-full px-5 py-4 rounded-2xl bg-white border border-slate-200 font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10 focus:border-[#3d0413]/50 transition"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (storyMode === 'UPLOAD' && !storyMediaDataUrl) {
+                      setStoryError('Please choose an image to continue.');
+                      return;
+                    }
+                    if (storyMode === 'TEXT' && !storyText.trim()) {
+                      setStoryError('Please type your story text.');
+                      return;
+                    }
+                    publishStory();
+                  }}
+                  className="w-full px-6 py-4 rounded-2xl bg-[#3d0413] hover:bg-black text-white text-[10px] font-black uppercase tracking-widest shadow-xl border-b-4 border-black/90 active:scale-95 transition"
+                >
+                  Share to story
+                </button>
+
+                <p className="text-[10px] font-bold text-slate-400">
+                  Stories expire automatically after <span className="font-black text-slate-600">24 hours</span>.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Top bar (Facebook-like) */}
       <div className="sticky top-0 z-40 bg-[#3d0413] border-b border-[#3d0413] shadow-sm">
         <div className="w-full h-[100px] px-0 grid grid-cols-[auto_1fr_auto] items-center gap-0 min-w-0 rounded-[28px] bg-gradient-to-r from-[#3d0413] via-[#3d0413]/70 to-white/95 border border-white/15 shadow-[0_18px_50px_-28px_rgba(0,0,0,0.85)] backdrop-blur-md">
@@ -1015,7 +1235,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
           <StoriesRow
             user={user}
             profile={profile}
-            onCreateStory={() => addNotif('Story creation will be enabled when backend is connected.')}
+            onCreateStory={openStoryComposer}
           />
 
           {filteredPosts.map((p) => {

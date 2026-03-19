@@ -11,6 +11,7 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, onOpenClassnet }) => {
   const [val, setVal] = useState('');
+  const [slideIndex, setSlideIndex] = useState(0);
   const firstName = useMemo(() => (user.name || '').trim().split(/\s+/)[0] || 'Friend', [user.name]);
   const targetTyped = useMemo(() => `Hello, ${firstName}`, [firstName]);
   const [typed, setTyped] = useState('');
@@ -41,6 +42,14 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
     return () => window.cancelAnimationFrame(rafId);
   }, [targetTyped]);
 
+  useEffect(() => {
+    const slides = 5;
+    const id = window.setInterval(() => {
+      setSlideIndex((prev) => (prev + 1) % slides);
+    }, 6000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
@@ -57,8 +66,18 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
   return (
     <div className="relative bg-slate-950 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[3rem] overflow-hidden p-4 sm:p-8 md:p-16 lg:p-24 text-center text-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)]">
       <div className="absolute inset-0 opacity-40">
-        <div className="absolute top-0 left-0 w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-rose-950 rounded-full blur-[100px] sm:blur-[160px] -ml-20 sm:-ml-40 -mt-20 sm:-mt-40 animate-pulse"></div>
-        <div className="absolute bottom-0 right-0 w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] bg-red-950 rounded-full blur-[100px] sm:blur-[160px] -mr-20 sm:-mr-40 -mb-20 sm:-mb-40"></div>
+        {[1, 2, 3, 4, 5].map((n, idx) => (
+          <img
+            key={n}
+            src={`/slide-${n}.png`}
+            alt={`Campus slide ${n}`}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+              slideIndex === idx ? 'opacity-100' : 'opacity-0'
+            }`}
+            loading={idx === 0 ? 'eager' : 'lazy'}
+          />
+        ))}
+        <div className="absolute inset-0 bg-gradient-to-tr from-slate-950/90 via-slate-950/40 to-slate-950/80" />
       </div>
 
       <div className="relative z-10 max-w-4xl mx-auto">
@@ -83,7 +102,7 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
           The ultimate repository of lecture notes, past exams, and technical manuals specifically curated for the polytechnic community.
         </p>
 
-        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4 mb-6 sm:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000 bg-[rgba(196,186,189,0.2)]">
+        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4 mb-6 sm:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000 rounded-2xl sm:rounded-3xl bg-white/10 backdrop-blur-xl border border-white/10 p-3 sm:p-4">
           <button 
             className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-white/5 border border-white/10 backdrop-blur-xl rounded-none flex items-center justify-center overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
             onClick={() => onViewDashboard('PHYSICAL')}
