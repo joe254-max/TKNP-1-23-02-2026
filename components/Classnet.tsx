@@ -118,8 +118,14 @@ type LiveSession = {
 
 type Story = {
   id: string;
+  userId: string;
   authorName: string;
-  imageDataUrl?: string | null;
+  authorAvatarUrl?: string | null;
+  audience?: 'FRIENDS' | 'CLOSE_BONDS';
+  caption?: string | null;
+  textBody?: string | null;
+  mediaUrl?: string | null;
+  expiresAt?: string;
   isMine?: boolean;
 };
 
@@ -227,12 +233,12 @@ const seedPosts = (user: User): Post[] => {
     {
       id: `seed-${Date.now()}-1`,
       authorId: 'tknp-admin',
-      authorName: 'TKNP Classnet',
+      authorName: 'TKNP Bondify',
       authorAvatar: null,
       createdAt: now,
       visibility: 'SCHOOL',
       text:
-        'Welcome to Classnet. This is the official campus social feed for announcements, class updates, and community posts.',
+        'Welcome to Bondify. This is the official campus social feed for announcements, class updates, and community posts.',
       imageDataUrl: null,
       reactions: [{ userId: user.id, type: 'LIKE' }],
       comments: [
@@ -316,7 +322,6 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
   const reduceMotion = useReducedMotion();
 
   const profileKey = userScopedKey(STORAGE.PROFILE, user.id);
-  const storiesKey = userScopedKey('classnet_stories_v1', user.id);
   const [profile, setProfile] = useState<ClassnetProfile>(() => {
     const p = safeParse<ClassnetProfile | null>(localStorage.getItem(profileKey), null);
     return (
@@ -334,8 +339,54 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
   const [storyText, setStoryText] = useState('');
   const [storyCaption, setStoryCaption] = useState('');
   const [storyMediaDataUrl, setStoryMediaDataUrl] = useState<string | null>(null);
+  const [storyMediaFile, setStoryMediaFile] = useState<File | null>(null);
+
+  type UploadFilterId =
+    | 'WARM_GLOW'
+    | 'COOL_FADE'
+    | 'VIVID_POP'
+    | 'B_W_CLASSIC'
+    | 'SEPIA_MEMORY'
+    | 'NEON_NIGHT'
+    | 'CINEMA_TEA_ORANGE'
+    | 'SOFT_DREAM'
+    | 'FILM_GRAIN';
+
+  type TextTemplateId = 'GRADIENT_ROSE' | 'DARK_GLOW' | 'PAPER' | 'TECH_GRID';
+  type TextStyleId = 'CLEAN' | 'GLOW' | 'OUTLINE';
+
+  const uploadFilters: { id: UploadFilterId; label: string }[] = [
+    { id: 'WARM_GLOW', label: 'Warm Glow' },
+    { id: 'COOL_FADE', label: 'Cool Fade' },
+    { id: 'VIVID_POP', label: 'Vivid Pop' },
+    { id: 'B_W_CLASSIC', label: 'B&W Classic' },
+    { id: 'SEPIA_MEMORY', label: 'Sepia Memory' },
+    { id: 'NEON_NIGHT', label: 'Neon Night' },
+    { id: 'CINEMA_TEA_ORANGE', label: 'Teal/Orange' },
+    { id: 'SOFT_DREAM', label: 'Soft Dream' },
+    { id: 'FILM_GRAIN', label: 'Film Grain' },
+  ];
+
+  const [uploadFilterId, setUploadFilterId] = useState<UploadFilterId>('WARM_GLOW');
+  const [uploadIntensity, setUploadIntensity] = useState<number>(70);
+
+  const textTemplates: { id: TextTemplateId; label: string }[] = [
+    { id: 'GRADIENT_ROSE', label: 'Gradient' },
+    { id: 'DARK_GLOW', label: 'Dark Glow' },
+    { id: 'PAPER', label: 'Paper' },
+    { id: 'TECH_GRID', label: 'Tech Grid' },
+  ];
+
+  const [textTemplateId, setTextTemplateId] = useState<TextTemplateId>('GRADIENT_ROSE');
+  const [textStyleId, setTextStyleId] = useState<TextStyleId>('GLOW');
+
   const [storyError, setStoryError] = useState<string | null>(null);
   const storyFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const STORY_BUCKET = 'classnet-stories';
+
+  const [stories, setStories] = useState<Story[]>([]);
+  const [activeStory, setActiveStory] = useState<Story | null>(null);
 
   const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -345,6 +396,323 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
       r.readAsDataURL(file);
     });
 
+  const loadImage = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = src;
+    });
+
+  const canvasToBlob = (canvas: HTMLCanvasElement, quality = 0.92) =>
+    new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => {
+          if (!b) return reject(new Error('Failed to encode image'));
+          resolve(b);
+        },
+        'image/jpeg',
+        quality
+      );
+    });
+
+  const getUploadCanvasFilter = (id: UploadFilterId, intensity: number) => {
+    const i = Math.max(0, Math.min(1, intensity / 100));
+    switch (id) {
+      case 'WARM_GLOW':
+        return `brightness(${1 + 0.08 * i}) contrast(${1 + 0.05 * i}) saturate(${1 + 0.25 * i}) sepia(${0.16 * i})`;
+      case 'COOL_FADE':
+        return `brightness(${1 - 0.03 * i}) contrast(${1 + 0.06 * i}) saturate(${1 - 0.1 * i}) hue-rotate(${-8 * i}deg)`;
+      case 'VIVID_POP':
+        return `brightness(${1 + 0.02 * i}) contrast(${1 + 0.18 * i}) saturate(${1 + 0.45 * i})`;
+      case 'B_W_CLASSIC':
+        return `grayscale(1) contrast(${1 + 0.4 * i}) brightness(${1 - 0.05 * i})`;
+      case 'SEPIA_MEMORY':
+        return `sepia(${0.85 * i}) saturate(${1 - 0.05 * i}) contrast(${1 + 0.08 * i})`;
+      case 'NEON_NIGHT':
+        return `brightness(${0.82 - 0.08 * i}) contrast(${1.28 + 0.2 * i}) saturate(${1 + 0.3 * i}) hue-rotate(${20 * i}deg)`;
+      case 'CINEMA_TEA_ORANGE':
+        return `contrast(${1 + 0.12 * i}) saturate(${1 + 0.12 * i}) hue-rotate(${-5 * i}deg)`;
+      case 'SOFT_DREAM':
+        return `brightness(${1 + 0.08 * i}) contrast(${1 - 0.05 * i}) saturate(${1 - 0.1 * i}) blur(${2 * i}px)`;
+      case 'FILM_GRAIN':
+        return `contrast(${1 + 0.12 * i}) saturate(${1 - 0.05 * i}) sepia(${0.12 * i})`;
+      default:
+        return 'none';
+    }
+  };
+
+  const applyVignette = (ctx: CanvasRenderingContext2D, w: number, h: number, intensity: number) => {
+    const i = Math.max(0, Math.min(1, intensity / 100));
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    const r = Math.max(w, h) * 0.65;
+    const grad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.15, w / 2, h / 2, r);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, `rgba(0,0,0,${0.38 * i})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  };
+
+  const applyGrain = (ctx: CanvasRenderingContext2D, w: number, h: number, intensity: number) => {
+    const i = Math.max(0, Math.min(1, intensity / 100));
+    const alpha = 0.06 * i;
+    const step = Math.max(2, Math.round(6 - 4 * i));
+    ctx.save();
+    ctx.globalCompositeOperation = 'overlay';
+    for (let y = 0; y < h; y += step) {
+      for (let x = 0; x < w; x += step) {
+        const rnd = Math.random();
+        const v = rnd < 0.5 ? 255 : 0;
+        ctx.fillStyle = `rgba(${v},${v},${v},${alpha * Math.random()})`;
+        ctx.fillRect(x, y, step, step);
+      }
+    }
+    ctx.restore();
+  };
+
+  const processUploadStoryToBlob = async (src: string, filterId: UploadFilterId, intensity: number) => {
+    const img = await loadImage(src);
+    const outW = 1080;
+    const outH = 1920;
+    const canvas = document.createElement('canvas');
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+
+    // Cover-fit into a vertical 9:16 story frame.
+    const imgAR = img.naturalWidth / img.naturalHeight;
+    const outAR = outW / outH;
+    let drawW = outW;
+    let drawH = outH;
+    if (imgAR > outAR) {
+      // Image is wider: scale by height.
+      drawH = outH;
+      drawW = img.naturalWidth * (outH / img.naturalHeight);
+    } else {
+      // Image is taller/narrower: scale by width.
+      drawW = outW;
+      drawH = img.naturalHeight * (outW / img.naturalWidth);
+    }
+    const dx = (outW - drawW) / 2;
+    const dy = (outH - drawH) / 2;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.filter = getUploadCanvasFilter(filterId, intensity);
+    ctx.drawImage(img, dx, dy, drawW, drawH);
+    ctx.restore();
+
+    // Extra effects for certain presets.
+    const i = Math.max(0, Math.min(1, intensity / 100));
+
+    if (filterId === 'CINEMA_TEA_ORANGE') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      // Teal shadow
+      const teal = ctx.createLinearGradient(0, 0, outW, outH);
+      teal.addColorStop(0, `rgba(0,255,200,${0.18 * i})`);
+      teal.addColorStop(0.5, `rgba(0,255,200,${0.06 * i})`);
+      teal.addColorStop(1, `rgba(255,120,0,${0.12 * i})`);
+      ctx.fillStyle = teal;
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.restore();
+    }
+
+    if (filterId === 'SOFT_DREAM') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      const haze = ctx.createRadialGradient(outW * 0.5, outH * 0.3, 10, outW * 0.5, outH * 0.3, outW * 0.9);
+      haze.addColorStop(0, `rgba(255,255,255,${0.16 * i})`);
+      haze.addColorStop(1, `rgba(255,255,255,0)`);
+      ctx.fillStyle = haze;
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.restore();
+    }
+
+    applyVignette(ctx, outW, outH, intensity);
+    if (filterId === 'FILM_GRAIN' || filterId === 'SOFT_DREAM') {
+      applyGrain(ctx, outW, outH, intensity);
+    }
+
+    return canvasToBlob(canvas);
+  };
+
+  const renderTextStoryToBlob = async (text: string, templateId: TextTemplateId, styleId: TextStyleId) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+
+    const outW = canvas.width;
+    const outH = canvas.height;
+    const i = Math.max(0.35, Math.min(1, uploadIntensity / 100));
+
+    // Background templates
+    ctx.save();
+    switch (templateId) {
+      case 'GRADIENT_ROSE': {
+        const g = ctx.createLinearGradient(0, 0, outW, outH);
+        g.addColorStop(0, '#3d0413');
+        g.addColorStop(0.4, '#9f1239');
+        g.addColorStop(1, '#f43f5e');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, outW, outH);
+
+        const glow = ctx.createRadialGradient(outW * 0.2, outH * 0.2, 20, outW * 0.2, outH * 0.2, outW * 0.8);
+        glow.addColorStop(0, `rgba(255,255,255,${0.18 * i})`);
+        glow.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, outW, outH);
+        break;
+      }
+      case 'DARK_GLOW': {
+        ctx.fillStyle = '#05010a';
+        ctx.fillRect(0, 0, outW, outH);
+        const g = ctx.createRadialGradient(outW * 0.5, outH * 0.2, 10, outW * 0.5, outH * 0.2, outW * 0.9);
+        g.addColorStop(0, `rgba(110,231,183,${0.26 * i})`);
+        g.addColorStop(0.4, `rgba(167,139,250,${0.18 * i})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, outW, outH);
+        break;
+      }
+      case 'PAPER': {
+        ctx.fillStyle = '#f7f1e6';
+        ctx.fillRect(0, 0, outW, outH);
+        // simple noise
+        ctx.globalAlpha = 0.08 * i;
+        ctx.globalCompositeOperation = 'multiply';
+        for (let y = 0; y < outH; y += 4) {
+          for (let x = 0; x < outW; x += 4) {
+            const rnd = Math.random();
+            const v = rnd < 0.5 ? 210 : 250;
+            ctx.fillStyle = `rgb(${v},${v},${v})`;
+            ctx.fillRect(x, y, 2, 2);
+          }
+        }
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case 'TECH_GRID': {
+        ctx.fillStyle = '#060912';
+        ctx.fillRect(0, 0, outW, outH);
+        ctx.globalCompositeOperation = 'screen';
+        ctx.strokeStyle = `rgba(167,139,250,${0.18 * i})`;
+        ctx.lineWidth = 2;
+        const step = 90;
+        for (let x = 0; x <= outW; x += step) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, outH);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= outH; y += step) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(outW, y);
+          ctx.stroke();
+        }
+        // diagonal highlight
+        const g = ctx.createLinearGradient(0, 0, outW, outH);
+        g.addColorStop(0, `rgba(110,231,183,${0.18 * i})`);
+        g.addColorStop(0.5, `rgba(110,231,183,${0.06 * i})`);
+        g.addColorStop(1, 'rgba(110,231,183,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, outW, outH);
+        ctx.globalCompositeOperation = 'source-over';
+        break;
+      }
+      default:
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, outW, outH);
+    }
+    ctx.restore();
+
+    const mainText = text.trim();
+    const isPaper = templateId === 'PAPER';
+    const fillText = isPaper ? '#0f172a' : '#ffffff';
+
+    const fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+    const rawLen = mainText.length;
+    let fontSize = 86;
+    if (rawLen > 120) fontSize = 62;
+    else if (rawLen > 90) fontSize = 70;
+    else if (rawLen > 60) fontSize = 76;
+
+    const maxWidth = 860;
+    const x = (outW - maxWidth) / 2;
+    const startY = 560;
+    const lineHeight = Math.round(fontSize * 1.08);
+
+    const wrapLines = (ctx2: CanvasRenderingContext2D, t: string, maxW: number) => {
+      const paragraphs = t.replace(/\r\n/g, '\n').split('\n');
+      const lines: string[] = [];
+      for (const p of paragraphs) {
+        const words = p.split(/\s+/).filter(Boolean);
+        if (words.length === 0) {
+          lines.push('');
+          continue;
+        }
+        let current = words[0];
+        for (let idx = 1; idx < words.length; idx++) {
+          const test = `${current} ${words[idx]}`;
+          if (ctx2.measureText(test).width <= maxW) current = test;
+          else {
+            lines.push(current);
+            current = words[idx];
+          }
+        }
+        lines.push(current);
+      }
+      return lines.slice(0, 10);
+    };
+
+    // Text style
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = `900 ${fontSize}px ${fontFamily}`;
+
+    if (styleId === 'GLOW') {
+      ctx.shadowColor = isPaper ? 'rgba(61,4,19,0.35)' : 'rgba(255, 255, 255, 0.28)';
+      ctx.shadowBlur = Math.round(fontSize * 0.35);
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    } else if (styleId === 'OUTLINE') {
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = isPaper ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.7)';
+      ctx.lineWidth = Math.max(4, Math.round(fontSize / 16));
+    }
+
+    ctx.fillStyle = fillText;
+    const lines = wrapLines(ctx, mainText, maxWidth);
+    let y = startY;
+    for (const line of lines) {
+      if (styleId === 'OUTLINE') ctx.strokeText(line, x, y);
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+    }
+    ctx.restore();
+
+    // Optional subtle border
+    ctx.save();
+    ctx.strokeStyle = isPaper ? 'rgba(15,23,42,0.12)' : 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 8;
+    ctx.globalAlpha = 0.5;
+    ctx.strokeRect(40, 40, outW - 80, outH - 80);
+    ctx.restore();
+
+    return canvasToBlob(canvas);
+  };
+
   const openStoryComposer = () => {
     setStoryError(null);
     setStoryMode('UPLOAD');
@@ -352,37 +720,135 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
     setStoryText('');
     setStoryCaption('');
     setStoryMediaDataUrl(null);
+    setStoryMediaFile(null);
+    setUploadFilterId('WARM_GLOW');
+    setUploadIntensity(70);
+    setTextTemplateId('GRADIENT_ROSE');
+    setTextStyleId('GLOW');
     setStoryComposerOpen(true);
   };
 
-  const publishStory = () => {
+  const publishStory = async () => {
     setStoryError(null);
     try {
       const now = Date.now();
-      const expiresAt = now + 24 * 60 * 60 * 1000;
-      const next = {
-        id: `story-${now}`,
-        createdAt: new Date(now).toISOString(),
-        expiresAt: new Date(expiresAt).toISOString(),
+      const expiresAtIso = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+
+      if (!supabase) {
+        setStoryError('Supabase is not configured (missing env vars).');
+        return;
+      }
+
+      let mediaPath: string | null = null;
+      let mediaUrl: string | null = null;
+
+      if (storyMode === 'UPLOAD') {
+        if (!storyMediaDataUrl) {
+          setStoryError('Please choose an image to continue.');
+          return;
+        }
+
+        const blob = await processUploadStoryToBlob(storyMediaDataUrl, uploadFilterId, uploadIntensity);
+        const mediaName = `${now}-${uploadFilterId}-${Math.random().toString(16).slice(2)}.jpg`;
+        mediaPath = `stories/${user.id}/${mediaName}`;
+        const processedFile = new File([blob], mediaName, { type: 'image/jpeg' });
+
+        const { error: uploadErr } = await supabase.storage.from(STORY_BUCKET).upload(mediaPath, processedFile, {
+          contentType: 'image/jpeg',
+          upsert: false,
+        });
+        if (uploadErr) throw uploadErr;
+
+        const { data: publicUrlData } = supabase.storage.from(STORY_BUCKET).getPublicUrl(mediaPath);
+        mediaUrl = publicUrlData.publicUrl ?? null;
+      } else {
+        const cleanedText = storyText.trim();
+        if (!cleanedText) {
+          setStoryError('Please type your story text.');
+          return;
+        }
+
+        const blob = await renderTextStoryToBlob(cleanedText, textTemplateId, textStyleId);
+        const mediaName = `${now}-text-${textTemplateId}-${Math.random().toString(16).slice(2)}.jpg`;
+        mediaPath = `stories/${user.id}/${mediaName}`;
+        const processedFile = new File([blob], mediaName, { type: 'image/jpeg' });
+
+        const { error: uploadErr } = await supabase.storage.from(STORY_BUCKET).upload(mediaPath, processedFile, {
+          contentType: 'image/jpeg',
+          upsert: false,
+        });
+        if (uploadErr) throw uploadErr;
+
+        const { data: publicUrlData } = supabase.storage.from(STORY_BUCKET).getPublicUrl(mediaPath);
+        mediaUrl = publicUrlData.publicUrl ?? null;
+      }
+
+      const { error: insertErr } = await supabase.from('classnet_stories').insert({
+        user_id: user.id,
+        author_name: profile.displayName || user.name,
+        author_avatar_url: profile.avatarDataUrl ?? null,
         audience: storyAudience,
         caption: storyCaption.trim() || null,
-        text: storyMode === 'TEXT' ? (storyText.trim() || null) : null,
-        mediaDataUrl: storyMode === 'UPLOAD' ? storyMediaDataUrl : null,
-      };
-
-      const existing = safeParse<any[]>(localStorage.getItem(storiesKey), []);
-      const kept = existing.filter((s) => {
-        const exp = Date.parse(s?.expiresAt || '');
-        return Number.isFinite(exp) ? exp > now : false;
+        text_body: storyMode === 'TEXT' ? (storyText.trim() || null) : null,
+        media_path: mediaPath,
+        media_url: mediaUrl,
+        expires_at: expiresAtIso,
       });
-      kept.unshift(next);
-      localStorage.setItem(storiesKey, JSON.stringify(kept.slice(0, 50)));
+      if (insertErr) throw insertErr;
+
       setStoryComposerOpen(false);
+      setStoryMode('UPLOAD');
+      setStoryAudience('FRIENDS');
+      setStoryText('');
+      setStoryCaption('');
+      setStoryMediaDataUrl(null);
+      setStoryMediaFile(null);
+      setActiveStory(null);
+
+      await loadStories();
       addNotif('Story published to your ring.');
     } catch (e) {
       setStoryError((e as Error).message || 'Failed to publish story');
     }
   };
+
+  const loadStories = async () => {
+    if (!supabase) return;
+    const nowIso = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('classnet_stories')
+      .select('id,user_id,author_name,author_avatar_url,audience,caption,text_body,media_url,expires_at,created_at')
+      .gt('expires_at', nowIso)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) return;
+
+    const mapped: Story[] = (data || []).map((s: any) => ({
+      id: s.id,
+      userId: s.user_id,
+      authorName: s.author_name,
+      authorAvatarUrl: s.author_avatar_url,
+      audience: s.audience,
+      caption: s.caption,
+      textBody: s.text_body,
+      mediaUrl: s.media_url,
+      expiresAt: s.expires_at,
+      isMine: s.user_id === user.id,
+    }));
+
+    // Minimal audience logic (demo):
+    // - FRIENDS: visible to everyone
+    // - CLOSE_BONDS: visible only to the author
+    const filtered = mapped.filter((s) => s.isMine || s.audience === 'FRIENDS');
+    setStories(filtered);
+  };
+
+  useEffect(() => {
+    void loadStories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id]);
+
   const [peopleResults, setPeopleResults] = useState<{ userId: string; displayName: string; headline?: string | null; avatarUrl?: string | null }[]>([]);
   const [peopleSearchOpen, setPeopleSearchOpen] = useState(false);
   const [viewedUserId, setViewedUserId] = useState<string | null>(null);
@@ -583,7 +1049,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
     setComposerVisibility('SCHOOL');
     setComposerError(null);
     setComposerOpen(false);
-    addNotif('Your post is live on Classnet.');
+    addNotif('Your post is live on Bondify.');
   };
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -626,43 +1092,83 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
             onClick={() => setStoryComposerOpen(false)}
             aria-label="Close story composer"
           />
-          <div className="relative w-full max-w-3xl bg-white rounded-[2rem] border border-slate-200 shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div className="relative w-full max-w-3xl bg-white/5 backdrop-blur-2xl rounded-[2rem] border border-white/10 shadow-2xl shadow-rose-900/20 overflow-hidden">
+            <div className="p-5 border-b border-white/10 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Bondify</p>
-                <h3 className="text-lg sm:text-xl font-black text-slate-900 truncate">Create my story</h3>
+                <p className="text-xs font-black text-white/60 uppercase tracking-widest">Bondify</p>
+                <h3 className="text-lg sm:text-xl font-black text-white truncate">Create my story</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setStoryComposerOpen(false)}
-                className="p-2 rounded-2xl bg-slate-100 hover:bg-slate-200 transition"
+                className="p-2 rounded-2xl bg-white/10 hover:bg-white/15 transition text-white"
               >
                 <X size={18} />
               </button>
             </div>
 
             <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <div className="rounded-[1.5rem] bg-slate-950 overflow-hidden border border-slate-900/10 relative min-h-[320px]">
+              <div className="rounded-[1.5rem] bg-gradient-to-b from-slate-950 to-slate-900 overflow-hidden border border-white/10 relative min-h-[320px]">
                 {storyMode === 'UPLOAD' ? (
                   storyMediaDataUrl ? (
                     <>
-                      <img src={storyMediaDataUrl} alt="Story preview" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+                      <img
+                        src={storyMediaDataUrl}
+                        alt="Story preview"
+                        className="absolute inset-0 w-full h-full object-cover"
+                        draggable={false}
+                        style={{ filter: getUploadCanvasFilter(uploadFilterId, uploadIntensity) }}
+                      />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
                     </>
                   ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white/80 text-center p-6">
-                      <MonitorPlay size={32} />
-                      <p className="mt-3 text-sm font-black uppercase tracking-widest">Upload photo</p>
-                      <p className="mt-2 text-xs font-bold text-white/60 max-w-xs">
-                        Choose a professional campus moment. (Images only for now.)
-                      </p>
+                    <div className="absolute inset-0 p-8 flex items-center justify-center">
+                      <div className="w-full h-full rounded-[1.5rem] border-2 border-dashed border-white/15 bg-white/5 backdrop-blur-sm flex flex-col items-center justify-center text-center px-4">
+                        <MonitorPlay size={32} className="text-white/80" />
+                        <p className="mt-3 text-sm font-black text-white uppercase tracking-widest">Add a photo</p>
+                        <p className="mt-2 text-xs font-bold text-white/60 max-w-xs">
+                          Choose a campus moment. (Images only for now.)
+                        </p>
+                      </div>
                     </div>
                   )
                 ) : (
                   <div className="absolute inset-0 p-8 flex items-center justify-center">
-                    <div className="w-full rounded-[1.5rem] bg-white/10 border border-white/10 backdrop-blur-xl p-6 text-white">
-                      <p className="text-xs font-black uppercase tracking-widest text-white/70">Text story</p>
-                      <p className="mt-3 text-2xl sm:text-3xl font-black leading-tight whitespace-pre-wrap break-words">
+                    <div
+                      className={`w-full rounded-[1.5rem] p-6 ${textTemplateId === 'PAPER' ? 'bg-[#f7f1e6] border-[#ead7b7] text-slate-900' : 'bg-white/10 border-white/10 text-white'}`}
+                      style={{
+                        backgroundImage:
+                          textTemplateId === 'GRADIENT_ROSE'
+                            ? 'linear-gradient(135deg, rgba(61,4,19,1), rgba(244,63,94,1))'
+                            : textTemplateId === 'DARK_GLOW'
+                              ? 'radial-gradient(circle at 50% 15%, rgba(110,231,183,0.35), rgba(0,0,0,0) 60%), linear-gradient(180deg, rgba(5,1,10,1), rgba(10,2,25,1))'
+                              : textTemplateId === 'TECH_GRID'
+                                ? 'linear-gradient(180deg, rgba(6,9,18,1), rgba(20,8,50,1)), repeating-linear-gradient(90deg, rgba(167,139,250,0.18) 0 1px, transparent 1px 80px), repeating-linear-gradient(0deg, rgba(167,139,250,0.14) 0 1px, transparent 1px 80px)'
+                                : undefined,
+                      }}
+                    >
+                      <p
+                        className={`text-xs font-black uppercase tracking-widest ${
+                          textTemplateId === 'PAPER' ? 'text-slate-600/70' : 'text-white/70'
+                        }`}
+                      >
+                        Text story
+                      </p>
+                      <p
+                        className="mt-3 text-2xl sm:text-3xl font-black leading-tight whitespace-pre-wrap break-words"
+                        style={{
+                          textShadow:
+                            textStyleId === 'GLOW'
+                              ? textTemplateId === 'PAPER'
+                                ? '0 0 18px rgba(61,4,19,0.28)'
+                                : '0 0 18px rgba(255,255,255,0.30)'
+                              : textStyleId === 'OUTLINE'
+                                ? textTemplateId === 'PAPER'
+                                  ? '0 2px 0 rgba(15,23,42,0.45), 0 -2px 0 rgba(15,23,42,0.45), 2px 0 0 rgba(15,23,42,0.45), -2px 0 0 rgba(15,23,42,0.45)'
+                                  : '0 2px 0 rgba(0,0,0,0.55), 0 -2px 0 rgba(0,0,0,0.55), 2px 0 0 rgba(0,0,0,0.55), -2px 0 0 rgba(0,0,0,0.55)'
+                                : undefined,
+                        }}
+                      >
                         {storyText.trim() ? storyText : 'Type something…'}
                       </p>
                     </div>
@@ -670,19 +1176,21 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                 )}
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-4 text-white bg-white/5 border border-white/10 rounded-[1.5rem] p-5">
                 {storyError && (
-                  <div className="px-4 py-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-black uppercase tracking-widest">
+                  <div className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-black uppercase tracking-widest">
                     {storyError}
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl">
+              <div className="grid grid-cols-2 gap-2 p-1 bg-white/5 border border-white/10 rounded-full">
                   <button
                     type="button"
                     onClick={() => setStoryMode('UPLOAD')}
-                    className={`py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all ${
-                      storyMode === 'UPLOAD' ? 'bg-white text-[#3d0413] shadow-xl' : 'text-slate-500 hover:text-slate-700'
+                    className={`py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-full transition-all ${
+                      storyMode === 'UPLOAD'
+                        ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white shadow-xl shadow-rose-600/20'
+                        : 'text-white/60 hover:text-white/80 hover:bg-white/5'
                     }`}
                   >
                     Upload
@@ -690,8 +1198,10 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                   <button
                     type="button"
                     onClick={() => setStoryMode('TEXT')}
-                    className={`py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all ${
-                      storyMode === 'TEXT' ? 'bg-white text-[#3d0413] shadow-xl' : 'text-slate-500 hover:text-slate-700'
+                    className={`py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-full transition-all ${
+                      storyMode === 'TEXT'
+                        ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white shadow-xl shadow-rose-600/20'
+                        : 'text-white/60 hover:text-white/80 hover:bg-white/5'
                     }`}
                   >
                     Text
@@ -710,8 +1220,10 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                         if (!f) return;
                         try {
                           const dataUrl = await fileToDataUrl(f);
+                          setStoryMediaFile(f);
                           setStoryMediaDataUrl(dataUrl);
                         } catch (err) {
+                          setStoryMediaFile(null);
                           setStoryError((err as Error).message || 'Failed to load image');
                         }
                       }}
@@ -723,22 +1235,108 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                     >
                       Choose photo
                     </button>
+
+                    <div className="space-y-2 pt-1">
+                      <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                        Filters
+                      </p>
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {uploadFilters.map((f) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => setUploadFilterId(f.id)}
+                            className={`shrink-0 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition ${
+                              uploadFilterId === f.id
+                                ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white border-white/10 ring-1 ring-rose-200/30'
+                                : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white/90'
+                            }`}
+                            title={f.label}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-3 px-1">
+                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">Intensity</p>
+                          <span className="text-[10px] font-black text-white/40">{uploadIntensity}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={uploadIntensity}
+                          onChange={(e) => setUploadIntensity(Number(e.target.value))}
+                          className="w-full accent-[#3d0413]"
+                        />
+                      </div>
+                    </div>
                   </>
                 ) : (
-                  <textarea
-                    value={storyText}
-                    onChange={(e) => setStoryText(e.target.value)}
-                    placeholder="Write something positive…"
-                    className="w-full min-h-[140px] px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10 focus:border-[#3d0413]/50 transition"
-                  />
+                  <>
+                    <textarea
+                      value={storyText}
+                      onChange={(e) => setStoryText(e.target.value)}
+                      placeholder="Write something positive…"
+                      className="w-full min-h-[140px] px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/20 focus:border-[#3d0413]/60 transition"
+                    />
+
+                    <div className="space-y-2 pt-2">
+                      <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                        Background
+                      </p>
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {textTemplates.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setTextTemplateId(t.id)}
+                            className={`shrink-0 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition ${
+                              textTemplateId === t.id
+                                ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white border-white/10 ring-1 ring-rose-200/30'
+                                : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white/90'
+                            }`}
+                            title={t.label}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                      <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                        Text style
+                      </p>
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {(['CLEAN', 'GLOW', 'OUTLINE'] as TextStyleId[]).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setTextStyleId(s)}
+                            className={`shrink-0 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition ${
+                              textStyleId === s
+                                ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white border-white/10 ring-1 ring-rose-200/30'
+                                : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white/90'
+                            }`}
+                            title={s}
+                          >
+                            {s === 'CLEAN' ? 'Clean' : s === 'GLOW' ? 'Glow' : 'Outline'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Audience</p>
+                  <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">Audience</p>
                   <select
                     value={storyAudience}
                     onChange={(e) => setStoryAudience(e.target.value as any)}
-                    className="w-full px-5 py-4 rounded-2xl bg-white border border-slate-200 font-bold outline-none"
+                    className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/20 focus:border-[#3d0413]/60 transition"
                   >
                     <option value="FRIENDS">Friends</option>
                     <option value="CLOSE_BONDS">Close bonds</option>
@@ -746,12 +1344,12 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Caption (optional)</p>
+                  <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">Caption (optional)</p>
                   <input
                     value={storyCaption}
                     onChange={(e) => setStoryCaption(e.target.value)}
                     placeholder="Add a short context…"
-                    className="w-full px-5 py-4 rounded-2xl bg-white border border-slate-200 font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10 focus:border-[#3d0413]/50 transition"
+                    className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/20 focus:border-[#3d0413]/60 transition"
                   />
                 </div>
 
@@ -766,21 +1364,64 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                       setStoryError('Please type your story text.');
                       return;
                     }
-                    publishStory();
+                    void publishStory();
                   }}
-                  className="w-full px-6 py-4 rounded-2xl bg-[#3d0413] hover:bg-black text-white text-[10px] font-black uppercase tracking-widest shadow-xl border-b-4 border-black/90 active:scale-95 transition"
+                  className="w-full px-6 py-4 rounded-2xl bg-gradient-to-r from-[#3d0413] to-rose-600 hover:brightness-110 text-white text-[10px] font-black uppercase tracking-widest shadow-2xl shadow-rose-600/20 border border-white/10 active:scale-95 transition"
                 >
                   Share to story
                 </button>
 
-                <p className="text-[10px] font-bold text-slate-400">
-                  Stories expire automatically after <span className="font-black text-slate-600">24 hours</span>.
+                <p className="text-[10px] font-bold text-white/50">
+                  Stories expire automatically after <span className="font-black text-white/80">24 hours</span>.
                 </p>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Story viewer */}
+      {activeStory && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setActiveStory(null)}
+            aria-label="Close story viewer"
+          />
+          <div className="relative w-full max-w-2xl rounded-[2rem] overflow-hidden bg-black shadow-2xl border border-white/10">
+            {activeStory.mediaUrl ? (
+              <img
+                src={activeStory.mediaUrl}
+                alt={activeStory.caption || activeStory.authorName || 'Story'}
+                className="w-full h-[70vh] object-contain bg-black"
+                draggable={false}
+              />
+            ) : (
+              <div className="p-6 min-h-[40vh] flex flex-col gap-3 text-white">
+                <p className="text-xs font-black uppercase tracking-widest text-white/60">{activeStory.authorName}</p>
+                <p className="text-lg sm:text-xl font-black whitespace-pre-wrap">{activeStory.textBody || ' '}</p>
+              </div>
+            )}
+
+            {(activeStory.caption || '').trim() && (
+              <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/70 via-black/10 to-transparent">
+                <p className="text-white text-sm sm:text-base font-bold whitespace-pre-wrap">{activeStory.caption}</p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition text-white"
+              onClick={() => setActiveStory(null)}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top bar (Facebook-like) */}
       <div className="sticky top-0 z-40 bg-[#3d0413] border-b border-[#3d0413] shadow-sm">
         <div className="w-full h-[100px] px-0 grid grid-cols-[auto_1fr_auto] items-center gap-0 min-w-0 rounded-[28px] bg-gradient-to-r from-[#3d0413] via-[#3d0413]/70 to-white/95 border border-white/15 shadow-[0_18px_50px_-28px_rgba(0,0,0,0.85)] backdrop-blur-md">
@@ -797,7 +1438,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               onFocus={() => setPeopleSearchOpen(true)}
-                placeholder="Search Classnet"
+                placeholder="Search Bondify"
                 className="bg-transparent outline-none w-full text-sm font-bold text-white/90 placeholder:text-white/50"
               />
             </div>
@@ -814,7 +1455,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
               {peopleResults.length === 0 ? (
                 <div className="p-4">
                   <p className="text-sm font-bold text-slate-500">No matches yet.</p>
-                  <p className="text-xs font-bold text-slate-400 mt-1">Tip: users appear after they open Classnet at least once.</p>
+                  <p className="text-xs font-bold text-slate-400 mt-1">Tip: users appear after they open Bondify at least once.</p>
                 </div>
               ) : (
                 <div className="p-2">
@@ -838,7 +1479,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-black text-slate-900 truncate">{p.displayName}</p>
-                        <p className="text-xs font-bold text-slate-500 truncate">{p.headline || 'Classnet user'}</p>
+                        <p className="text-xs font-bold text-slate-500 truncate">{p.headline || 'Bondify user'}</p>
                       </div>
                       <span className="text-xs font-black text-[#3d0413]">View</span>
                     </button>
@@ -903,7 +1544,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                           ref={searchInputRef}
                           value={query}
                           onChange={(e) => setQuery(e.target.value)}
-                          placeholder="Search Classnet..."
+                          placeholder="Search Bondify..."
                           className="bg-transparent outline-none w-full text-sm font-bold text-slate-800 placeholder:text-slate-400"
                         />
                       </div>
@@ -947,7 +1588,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
               {appsOpen && (
                 <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-[1.5rem] border border-slate-200 shadow-2xl overflow-hidden">
                   <div className="p-4 border-b border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em]">Classnet</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em]">Bondify</p>
                     <p className="text-sm font-black text-slate-900 uppercase tracking-tight">Shortcuts</p>
                   </div>
                   <div className="p-4 grid grid-cols-2 gap-2">
@@ -1236,6 +1877,8 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
             user={user}
             profile={profile}
             onCreateStory={openStoryComposer}
+            stories={stories}
+            onOpenStory={(s) => setActiveStory(s)}
           />
 
           {filteredPosts.map((p) => {
@@ -1431,7 +2074,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <p className="text-lg font-black text-slate-900 uppercase tracking-tight">Create post</p>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em]">Classnet · {composerVisibility}</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em]">Bondify · {composerVisibility}</p>
               </div>
               <button type="button" onClick={() => setComposerOpen(false)} className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700">
                 <X size={18} />
@@ -1558,7 +2201,7 @@ const ClassnetPageHeader: React.FC<{ tab: ClassnetTab }> = ({ tab }) => {
                 ? 'Profile'
                 : tab === 'SETTINGS'
                   ? 'Settings'
-                  : 'Classnet';
+                  : 'Bondify';
 
   const subtitle =
     tab === 'VIDEO'
@@ -1574,7 +2217,7 @@ const ClassnetPageHeader: React.FC<{ tab: ClassnetTab }> = ({ tab }) => {
             : tab === 'MESSAGES'
               ? 'Direct messages and group chats'
               : tab === 'PROFILE'
-                ? 'Your identity on Classnet'
+                ? 'Your identity on Bondify'
                 : tab === 'SETTINGS'
                   ? 'Privacy, notifications and preferences'
                   : '';
@@ -1583,7 +2226,7 @@ const ClassnetPageHeader: React.FC<{ tab: ClassnetTab }> = ({ tab }) => {
     <div className="mb-6">
       <div className="flex items-center gap-4">
         <div className="w-12 h-12 rounded-[1.25rem] bg-white border border-slate-200 shadow-sm overflow-hidden flex items-center justify-center">
-          <img src="/classnet-logo.png" alt="Classnet" className="w-full h-full object-contain" draggable={false} />
+          <img src="/bondify.png" alt="Bondify" className="w-full h-full object-contain" draggable={false} />
         </div>
         <div className="min-w-0">
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight truncate">{title}</h2>
@@ -2020,7 +2663,7 @@ const GoLiveModal: React.FC<{
                 className="mt-1 w-4 h-4"
               />
               <span className="text-sm font-bold text-slate-800">
-                I agree to the safety rules and terms for Classnet Live.
+                I agree to the safety rules and terms for Bondify Live.
               </span>
             </label>
           </div>
@@ -2468,7 +3111,7 @@ const VideoPage: React.FC = () => {
         id: 'r1',
         authorName: 'ICT Dept',
         caption: 'Quick tip: How to structure your React components cleanly.',
-        audio: 'Original audio · Classnet',
+        audio: 'Original audio · Bondify',
         topic: 'Software Engineering',
         takeaways: [
           'Keep components small and single-purpose.',
@@ -2483,7 +3126,7 @@ const VideoPage: React.FC = () => {
         id: 'r2',
         authorName: 'Library Helpdesk',
         caption: 'Past papers strategy: solve → mark → repeat.',
-        audio: 'Study beats · Classnet',
+        audio: 'Study beats · Bondify',
         topic: 'Study Skills',
         takeaways: [
           'Simulate exam timing for realistic practice.',
@@ -2498,7 +3141,7 @@ const VideoPage: React.FC = () => {
         id: 'r3',
         authorName: 'Electrical Workshop',
         caption: 'Safety first: lockout & PPE basics in the lab.',
-        audio: 'Workshop audio · Classnet',
+        audio: 'Workshop audio · Bondify',
         topic: 'Lab Safety',
         takeaways: [
           'Use PPE: goggles, gloves, boots where required.',
@@ -3300,7 +3943,7 @@ const MessagesPage: React.FC<{ user: User; addNotif: (t: string) => void }> = ({
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div>
                 <p className="text-sm font-black text-slate-900 uppercase tracking-tight">{active.title}</p>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Classnet messages</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Bondify messages</p>
               </div>
               <button type="button" className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest shadow-sm" onClick={() => addNotif('Realtime messaging will be enabled when backend is connected.')}>
                 Enable realtime
@@ -3309,7 +3952,7 @@ const MessagesPage: React.FC<{ user: User; addNotif: (t: string) => void }> = ({
             <div className="space-y-3 min-h-[260px]">
               <div className="flex justify-start">
                 <div className="max-w-[75%] p-3 rounded-2xl bg-slate-100 border border-slate-200">
-                  <p className="text-sm font-bold text-slate-700">Hello {user.name.split(' ')[0]} — welcome to Classnet messages.</p>
+                  <p className="text-sm font-bold text-slate-700">Hello {user.name.split(' ')[0]} — welcome to Bondify messages.</p>
                 </div>
               </div>
               <div className="flex justify-end">
@@ -3426,7 +4069,7 @@ const ProfilePage: React.FC<{
               </div>
               <div className="min-w-0">
                 <p className="text-xl font-black text-slate-900 truncate">{p?.displayName || 'User'}</p>
-                <p className="text-sm font-bold text-slate-600 truncate">{p?.headline || 'Classnet user'}</p>
+                <p className="text-sm font-bold text-slate-600 truncate">{p?.headline || 'Bondify user'}</p>
                 {p?.department && <p className="text-xs font-bold text-slate-500 mt-1">{p.department}</p>}
               </div>
             </div>
@@ -3529,7 +4172,7 @@ const ProfilePage: React.FC<{
           <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-5">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em] mb-2">Identity</p>
             <p className="text-sm font-bold text-slate-700">Signed in as <span className="font-black">{user.name}</span></p>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Changes here only affect Classnet display.</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Changes here only affect Bondify display.</p>
           </div>
         </div>
       </div>
@@ -3581,7 +4224,7 @@ const SettingsPage: React.FC<{ addNotif: (t: string) => void }> = ({ addNotif })
         </div>
         <div className="flex-1">
           <p className="text-sm font-black text-slate-900 uppercase tracking-tight">Professional policy</p>
-          <p className="text-sm text-slate-700 font-medium mt-1">Respectful communication, academic integrity, and privacy are enforced on Classnet.</p>
+          <p className="text-sm text-slate-700 font-medium mt-1">Respectful communication, academic integrity, and privacy are enforced on Bondify.</p>
         </div>
       </div>
 
@@ -3600,26 +4243,31 @@ const StoriesRow: React.FC<{
   user: User;
   profile: ClassnetProfile;
   onCreateStory: () => void;
-}> = ({ user, profile, onCreateStory }) => {
-  const stories: Story[] = useMemo(
-    () => [
-      { id: 's-mine', authorName: profile.displayName || user.name, isMine: true, imageDataUrl: profile.avatarDataUrl ?? null },
-      { id: 's1', authorName: 'Dag Heward', imageDataUrl: null },
-      { id: 's2', authorName: 'Vusi Thembekwayo', imageDataUrl: null },
-      { id: 's3', authorName: 'Charity Nganga', imageDataUrl: null },
-      { id: 's4', authorName: 'Peter Tuch', imageDataUrl: null },
-    ],
-    [profile.avatarDataUrl, profile.displayName, user.name]
-  );
+  stories: Story[];
+  onOpenStory: (s: Story) => void;
+}> = ({ user, profile, onCreateStory, stories, onOpenStory }) => {
+  const tiles: Story[] = useMemo(() => {
+    const mine: Story = {
+      id: 's-mine',
+      userId: user.id,
+      authorName: profile.displayName || user.name,
+      authorAvatarUrl: profile.avatarDataUrl ?? null,
+      isMine: true,
+      audience: 'FRIENDS',
+    };
+
+    const others = stories.filter((s) => !s.isMine).slice(0, 4);
+    return [mine, ...others];
+  }, [profile.avatarDataUrl, profile.displayName, stories, user.id, user.name]);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
       <div className="flex gap-3 overflow-x-auto pb-1">
-        {stories.map((s) => (
+        {tiles.map((s) => (
           <button
             key={s.id}
             type="button"
-            onClick={() => (s.isMine ? onCreateStory() : undefined)}
+            onClick={() => (s.isMine ? onCreateStory() : onOpenStory(s))}
             className="relative w-28 sm:w-32 h-44 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0 hover:shadow-md transition"
             title={s.isMine ? 'Create my story' : s.authorName}
           >
@@ -3629,8 +4277,8 @@ const StoriesRow: React.FC<{
             </div>
 
             <div className="absolute top-3 left-3 w-9 h-9 rounded-full border-2 border-[#3d0413] bg-white overflow-hidden flex items-center justify-center">
-              {s.imageDataUrl ? (
-                <img src={s.imageDataUrl} alt={s.authorName} className="w-full h-full object-cover" draggable={false} />
+              {s.authorAvatarUrl ? (
+                <img src={s.authorAvatarUrl} alt={s.authorName} className="w-full h-full object-cover" draggable={false} />
               ) : (
                 <span className="text-slate-700 font-black text-sm">{s.authorName.slice(0, 1).toUpperCase()}</span>
               )}

@@ -110,11 +110,11 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
             <img
               src="/myclasslogo.jpg"
               alt="My Class"
-              className="w-full h-full object-contain"
+              className="object-contain"
               draggable={false}
               style={{
-                width: '100%',
-                height: '100%',
+                width: 'fit-content',
+                height: 'fit-content',
                 display: 'flex',
                 flexWrap: 'wrap',
                 justifyContent: 'flex-start',

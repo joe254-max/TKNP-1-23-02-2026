@@ -1,4 +1,4 @@
--- Classnet demo schema (Supabase/Postgres)
+-- Bondify demo schema (Supabase/Postgres)
 -- Paste into Supabase SQL Editor and run.
 
 create extension if not exists pgcrypto;
@@ -67,12 +67,31 @@ create table if not exists public.classnet_live_chat_messages (
 );
 create index if not exists idx_classnet_live_chat_live on public.classnet_live_chat_messages(live_id);
 
+-- STORIES (Bondify-like)
+-- Images only in the current Bondify UI, but we also support text-only stories.
+create table if not exists public.classnet_stories (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  author_name text not null,
+  author_avatar_url text,
+  audience text not null default 'FRIENDS', -- FRIENDS | CLOSE_BONDS
+  caption text,
+  text_body text,
+  media_path text, -- storage object path (e.g. stories/<user>/<id>.jpg)
+  media_url text, -- public URL for quick rendering
+  created_at timestamptz default now(),
+  expires_at timestamptz not null
+);
+create index if not exists idx_classnet_stories_expires on public.classnet_stories(expires_at);
+create index if not exists idx_classnet_stories_user on public.classnet_stories(user_id);
+
 -- DEMO RLS (OPEN). For production you must lock this down.
 alter table public.classnet_profiles enable row level security;
 alter table public.classnet_live_sessions enable row level security;
 alter table public.classnet_live_guest_requests enable row level security;
 alter table public.classnet_live_guests enable row level security;
 alter table public.classnet_live_chat_messages enable row level security;
+alter table public.classnet_stories enable row level security;
 
 do $$
 begin
@@ -95,6 +114,28 @@ begin
   -- chat
   if not exists (select 1 from pg_policies where policyname = 'demo_chat_all') then
     create policy demo_chat_all on public.classnet_live_chat_messages for all using (true) with check (true);
+  end if;
+
+  -- stories (demo)
+  if not exists (select 1 from pg_policies where policyname = 'demo_stories_all') then
+    create policy demo_stories_all on public.classnet_stories for all using (true) with check (true);
+  end if;
+end $$;
+
+-- Storage bucket for story media
+-- Note: This is a demo setup (bucket is public and RLS is open).
+insert into storage.buckets (id, name, public)
+values ('classnet-stories', 'classnet-stories', true)
+on conflict (id) do nothing;
+
+alter table storage.objects enable row level security;
+do $$
+begin
+  if not exists (select 1 from pg_policies where policyname = 'demo_story_objects_all') then
+    create policy demo_story_objects_all on storage.objects
+      for all
+      using (bucket_id = 'classnet-stories')
+      with check (bucket_id = 'classnet-stories');
   end if;
 end $$;
 
