@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort",
+    "install:quiet": "npm ci --prefer-offline --no-audit --no-fund --silent",
     "build": "vite build",
     "preview": "vite preview"
   },

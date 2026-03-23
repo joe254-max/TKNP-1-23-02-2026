@@ -1085,15 +1085,15 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
   return (
     <div className="min-h-full bg-[#f0f2f5]">
       {storyComposerOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-stretch justify-center p-0 lg:items-start lg:p-4">
           <button
             type="button"
             className="absolute inset-0 bg-black/60"
             onClick={() => setStoryComposerOpen(false)}
             aria-label="Close story composer"
           />
-          <div className="relative w-full max-w-3xl bg-white/5 backdrop-blur-2xl rounded-[2rem] border border-white/10 shadow-2xl shadow-rose-900/20 overflow-hidden">
-            <div className="p-5 border-b border-white/10 flex items-center justify-between gap-3">
+          <div className="relative w-full h-full lg:w-full lg:max-w-3xl bg-white/5 backdrop-blur-2xl rounded-none lg:rounded-[2rem] border border-white/10 shadow-2xl shadow-rose-900/20 overflow-hidden max-h-[100vh] flex flex-col">
+            <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-black text-white/60 uppercase tracking-widest">Bondify</p>
                 <h3 className="text-lg sm:text-xl font-black text-white truncate">Create my story</h3>
@@ -1107,8 +1107,8 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
               </button>
             </div>
 
-            <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <div className="rounded-[1.5rem] bg-gradient-to-b from-slate-950 to-slate-900 overflow-hidden border border-white/10 relative min-h-[320px]">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className="rounded-[1.5rem] bg-gradient-to-b from-slate-950 to-slate-900 overflow-hidden border border-white/10 relative h-full min-h-0">
                 {storyMode === 'UPLOAD' ? (
                   storyMediaDataUrl ? (
                     <>
@@ -1122,8 +1122,8 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
                     </>
                   ) : (
-                    <div className="absolute inset-0 p-8 flex items-center justify-center">
-                      <div className="w-full h-full rounded-[1.5rem] border-2 border-dashed border-white/15 bg-white/5 backdrop-blur-sm flex flex-col items-center justify-center text-center px-4">
+                    <div className="absolute inset-0 p-0 flex items-start justify-start">
+                      <div className="w-full h-full rounded-[1.5rem] border-2 border-dashed border-white/15 bg-white/5 backdrop-blur-sm flex flex-col items-start justify-start text-left px-4 pt-6">
                         <MonitorPlay size={32} className="text-white/80" />
                         <p className="mt-3 text-sm font-black text-white uppercase tracking-widest">Add a photo</p>
                         <p className="mt-2 text-xs font-bold text-white/60 max-w-xs">
@@ -1133,7 +1133,7 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                     </div>
                   )
                 ) : (
-                  <div className="absolute inset-0 p-8 flex items-center justify-center">
+                  <div className="absolute inset-0 p-0 flex items-start justify-start">
                     <div
                       className={`w-full rounded-[1.5rem] p-6 ${textTemplateId === 'PAPER' ? 'bg-[#f7f1e6] border-[#ead7b7] text-slate-900' : 'bg-white/10 border-white/10 text-white'}`}
                       style={{
@@ -1174,9 +1174,215 @@ const Classnet: React.FC<{ user: User; onExit: () => void }> = ({ user, onExit }
                     </div>
                   </div>
                 )}
+                {/* Mobile: put the full composer controls inside the preview container */}
+                <div className="lg:hidden absolute inset-0 overflow-y-auto">
+                  <div className="space-y-4 text-white bg-white/5 border border-white/10 rounded-[1.5rem] p-5">
+                    {storyError && (
+                      <div className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-black uppercase tracking-widest">
+                        {storyError}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2 p-1 bg-white/5 border border-white/10 rounded-full">
+                      <button
+                        type="button"
+                        onClick={() => setStoryMode('UPLOAD')}
+                        className={`py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-full transition-all ${
+                          storyMode === 'UPLOAD'
+                            ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white shadow-xl shadow-rose-600/20'
+                            : 'text-white/60 hover:text-white/80 hover:bg-white/5'
+                        }`}
+                      >
+                        Upload
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStoryMode('TEXT')}
+                        className={`py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-full transition-all ${
+                          storyMode === 'TEXT'
+                            ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white shadow-xl shadow-rose-600/20'
+                            : 'text-white/60 hover:text-white/80 hover:bg-white/5'
+                        }`}
+                      >
+                        Text
+                      </button>
+                    </div>
+
+                    {storyMode === 'UPLOAD' ? (
+                      <>
+                        <input
+                          ref={storyFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            try {
+                              const dataUrl = await fileToDataUrl(f);
+                              setStoryMediaFile(f);
+                              setStoryMediaDataUrl(dataUrl);
+                            } catch (err) {
+                              setStoryMediaFile(null);
+                              setStoryError((err as Error).message || 'Failed to load image');
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => storyFileInputRef.current?.click()}
+                          className="w-full px-5 py-4 rounded-2xl bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase tracking-widest shadow-xl border-b-4 border-black/90 active:scale-95 transition"
+                        >
+                          Choose photo
+                        </button>
+
+                        <div className="space-y-2 pt-1">
+                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                            Filters
+                          </p>
+                          <div className="flex gap-2 overflow-x-auto pb-1">
+                            {uploadFilters.map((f) => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => setUploadFilterId(f.id)}
+                                className={`shrink-0 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition ${
+                                  uploadFilterId === f.id
+                                    ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white border-white/10 ring-1 ring-rose-200/30'
+                                    : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white/90'
+                                }`}
+                                title={f.label}
+                              >
+                                {f.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-3 px-1">
+                              <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">
+                                Intensity
+                              </p>
+                              <span className="text-[10px] font-black text-white/40">{uploadIntensity}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={uploadIntensity}
+                              onChange={(e) => setUploadIntensity(Number(e.target.value))}
+                              className="w-full accent-[#3d0413]"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <textarea
+                          value={storyText}
+                          onChange={(e) => setStoryText(e.target.value)}
+                          placeholder="Write something positive…"
+                          className="w-full min-h-[140px] px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/20 focus:border-[#3d0413]/60 transition"
+                        />
+
+                        <div className="space-y-2 pt-2">
+                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                            Background
+                          </p>
+                          <div className="flex gap-2 overflow-x-auto pb-1">
+                            {textTemplates.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setTextTemplateId(t.id)}
+                                className={`shrink-0 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition ${
+                                  textTemplateId === t.id
+                                    ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white border-white/10 ring-1 ring-rose-200/30'
+                                    : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white/90'
+                                }`}
+                                title={t.label}
+                              >
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 pt-2">
+                          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                            Text style
+                          </p>
+                          <div className="flex gap-2 overflow-x-auto pb-1">
+                            {(['CLEAN', 'GLOW', 'OUTLINE'] as TextStyleId[]).map((s) => (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => setTextStyleId(s)}
+                                className={`shrink-0 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition ${
+                                  textStyleId === s
+                                    ? 'bg-gradient-to-r from-[#3d0413] to-rose-600 text-white border-white/10 ring-1 ring-rose-200/30'
+                                    : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white/90'
+                                }`}
+                                title={s}
+                              >
+                                {s === 'CLEAN' ? 'Clean' : s === 'GLOW' ? 'Glow' : 'Outline'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">Audience</p>
+                      <select
+                        value={storyAudience}
+                        onChange={(e) => setStoryAudience(e.target.value as any)}
+                        className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/20 focus:border-[#3d0413]/60 transition"
+                      >
+                        <option value="FRIENDS">Friends</option>
+                        <option value="CLOSE_BONDS">Close bonds</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                        Caption (optional)
+                      </p>
+                      <input
+                        value={storyCaption}
+                        onChange={(e) => setStoryCaption(e.target.value)}
+                        placeholder="Add a short context…"
+                        className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/20 focus:border-[#3d0413]/60 transition"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (storyMode === 'UPLOAD' && !storyMediaDataUrl) {
+                          setStoryError('Please choose an image to continue.');
+                          return;
+                        }
+                        if (storyMode === 'TEXT' && !storyText.trim()) {
+                          setStoryError('Please type your story text.');
+                          return;
+                        }
+                        void publishStory();
+                      }}
+                      className="w-full px-6 py-4 rounded-2xl bg-gradient-to-r from-[#3d0413] to-rose-600 hover:brightness-110 text-white text-[10px] font-black uppercase tracking-widest shadow-2xl shadow-rose-600/20 border border-white/10 active:scale-95 transition"
+                    >
+                      Share to story
+                    </button>
+
+                    <p className="text-[10px] font-bold text-white/50">
+                      Stories expire automatically after <span className="font-black text-white/80">24 hours</span>.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-4 text-white bg-white/5 border border-white/10 rounded-[1.5rem] p-5">
+              <div className="hidden lg:block space-y-4 text-white bg-white/5 border border-white/10 rounded-[1.5rem] p-5">
                 {storyError && (
                   <div className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-black uppercase tracking-widest">
                     {storyError}
