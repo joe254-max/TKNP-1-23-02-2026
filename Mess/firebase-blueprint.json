@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "MenuItem": {
+      "title": "MenuItem",
+      "description": "A food item available on the menu.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the item" },
+        "description": { "type": "string", "description": "Description of the item" },
+        "price": { "type": "number", "description": "Default price in KES" },
+        "category": { "type": "string", "description": "Category (e.g., Breakfast, Lunch)" },
+        "image_url": { "type": "string", "description": "URL to the item image" },
+        "is_available": { "type": "boolean", "description": "Whether the item is currently available" },
+        "containers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "description": "Container name (e.g., Plate, Takeaway)" },
+              "price": { "type": "number", "description": "Price for this container" }
+            },
+            "required": ["name", "price"]
+          }
+        }
+      },
+      "required": ["name", "price", "category", "is_available"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "ID of the user who placed the order" },
+        "full_name": { "type": "string", "description": "Full name of the user" },
+        "phone_number": { "type": "string", "description": "Phone number for M-Pesa" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "price": { "type": "number" },
+              "quantity": { "type": "number" }
+            }
+          }
+        },
+        "total_amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["PENDING", "PAID", "PREPARING", "READY", "COMPLETED"] },
+        "payment_status": { "type": "string", "enum": ["PENDING", "SUCCESS", "FAILED"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "checkout_request_id": { "type": "string", "description": "M-Pesa CheckoutRequestID" }
+      },
+      "required": ["user_id", "items", "total_amount", "status", "payment_status", "created_at"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "An M-Pesa payment record.",
+      "type": "object",
+      "properties": {
+        "order_id": { "type": "string" },
+        "checkout_request_id": { "type": "string" },
+        "mpesa_receipt_number": { "type": "string" },
+        "phone_number": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "transaction_date": { "type": "string" }
+      },
+      "required": ["order_id", "checkout_request_id", "amount", "status"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user profile.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "full_name": { "type": "string" },
+        "phone_number": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["user_id", "full_name", "role"]
+    }
+  },
+  "firestore": {
+    "/menu": {
+      "schema": "MenuItem",
+      "description": "Collection of menu items"
+    },
+    "/orders": {
+      "schema": "Order",
+      "description": "Collection of customer orders"
+    },
+    "/payments": {
+      "schema": "Payment",
+      "description": "Collection of M-Pesa payments"
+    },
+    "/users": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    }
+  }
+}
