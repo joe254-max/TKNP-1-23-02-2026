@@ -102,9 +102,9 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
           The ultimate repository of lecture notes, past exams, and technical manuals specifically curated for the polytechnic community.
         </p>
 
-        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4 mb-6 sm:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000 rounded-2xl sm:rounded-3xl bg-white/10 backdrop-blur-xl border border-white/10 p-3 sm:p-4">
-          <button 
-            className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-white/5 border border-white/10 backdrop-blur-xl rounded-none flex items-center justify-center overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000 rounded-2xl sm:rounded-3xl bg-white/10 backdrop-blur-xl border border-white/10 p-3 sm:p-4">
+          <button
+            className="group w-full h-[72px] sm:h-[80px] p-0 bg-white/5 border border-white/10 backdrop-blur-xl rounded-none flex items-center justify-center overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
             onClick={() => onViewDashboard('PHYSICAL')}
           >
             <img
@@ -135,68 +135,102 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
             />
           </button>
 
-          <div className="flex flex-col gap-3 sm:gap-4">
-            <button 
-              className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-white/5 border border-[rgba(252,252,252,0.1)] text-[rgba(63,13,13,1)] font-thin backdrop-blur-xl rounded-none flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
-              onClick={onBrowse}
-            >
+          <button
+            className="group w-full h-[72px] sm:h-[80px] p-0 bg-white/5 border border-[rgba(252,252,252,0.1)] text-[rgba(63,13,13,1)] font-thin backdrop-blur-xl rounded-none flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+            onClick={onBrowse}
+          >
+            <img
+              src="/e-library.jpg"
+              alt="Library"
+              className="w-full h-full object-cover"
+              draggable={false}
+              style={{
+                width: '100%',
+                height: '100%',
+                margin: 0,
+                overflow: 'visible',
+                borderRadius: 0,
+                boxSizing: 'border-box',
+                backgroundColor: 'rgba(255, 255, 255, 1)',
+                borderWidth: 1,
+                borderStyle: 'solid',
+                borderColor: 'rgba(255, 255, 255, 1)',
+                boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)',
+                padding: 0,
+                display: 'flex',
+                flexWrap: 'wrap',
+              }}
+            />
+          </button>
+
+          <button
+            className="group w-full h-[72px] sm:h-[80px] p-0 bg-[rgba(79,17,17,0.05)] border border-[rgba(92,16,16,0.1)] text-[#521414] backdrop-blur-xl rounded-none flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+            onClick={onOpenClassnet}
+            style={{ backgroundClip: 'unset', WebkitBackgroundClip: 'unset' }}
+          >
+            <span className="shine-wrap">
               <img
-                src="/e-library.jpg"
-                alt="Library"
-                className="w-full h-full object-cover"
+                src="/bondify.png"
+                alt="Bondify"
+                className="w-full h-full object-contain"
                 draggable={false}
                 style={{
                   width: '100%',
-                  height: '100%',
+                  height: 'fit-content',
+                  minHeight: '123px',
                   margin: 0,
-                  overflow: 'visible',
+                  overflow: 'hidden',
                   borderRadius: 0,
-                  boxSizing: 'border-box',
+                  boxSizing: 'content-box',
                   backgroundColor: 'rgba(255, 255, 255, 1)',
                   borderWidth: 1,
                   borderStyle: 'solid',
-                  borderColor: 'rgba(255, 255, 255, 1)',
+                  borderColor: 'rgba(0, 0, 0, 1)',
+                  borderImage: 'linear-gradient(90deg, rgba(223, 216, 216, 1) 0%, rgba(0, 0, 0, 1) 100%) 1',
                   boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)',
                   padding: 0,
                   display: 'flex',
                   flexWrap: 'wrap',
+                  color: 'rgba(118, 25, 25, 1)',
                 }}
               />
-            </button>
+            </span>
+          </button>
 
-            <button 
-              className="group w-full sm:w-[240px] md:w-[260px] h-[72px] sm:h-[80px] p-0 bg-[rgba(79,17,17,0.05)] border border-[rgba(92,16,16,0.1)] text-[#521414] backdrop-blur-xl rounded-none flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
-              onClick={onOpenClassnet}
-              style={{ backgroundClip: 'unset', WebkitBackgroundClip: 'unset' }}
-            >
-              <span className="shine-wrap">
-                <img
-                  src="/bondify.png"
-                  alt="Bondify"
-                  className="w-full h-full object-contain"
-                  draggable={false}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    margin: 0,
-                    overflow: 'hidden',
-                    borderRadius: 0,
-                    boxSizing: 'content-box',
-                    backgroundColor: 'rgba(255, 255, 255, 1)',
-                    borderWidth: 1,
-                    borderStyle: 'solid',
-                    borderColor: 'rgba(0, 0, 0, 1)',
-                    borderImage: 'linear-gradient(90deg, rgba(223, 216, 216, 1) 0%, rgba(0, 0, 0, 1) 100%) 1',
-                    boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)',
-                    padding: 0,
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    color: 'rgba(118, 25, 25, 1)',
-                  }}
-                />
-              </span>
-            </button>
-          </div>
+          <button
+            type="button"
+            className="group w-full h-[72px] sm:h-[80px] p-0 bg-[rgba(79,17,17,0.05)] border border-[rgba(92,16,16,0.1)] text-[#521414] backdrop-blur-xl rounded-none flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
+            onClick={() => {
+              // Intentionally do not open Bondify/Classnet on "Mess" click.
+            }}
+            style={{ backgroundClip: 'unset', WebkitBackgroundClip: 'unset' }}
+          >
+            <img
+              src="/mess.png"
+              alt="Mess"
+              className="w-full h-full object-contain"
+              draggable={false}
+              style={{
+                width: '100%',
+                  height: 'fit-content',
+                  minHeight: '123px',
+                margin: 0,
+                overflow: 'hidden',
+                borderRadius: 0,
+                boxSizing: 'content-box',
+                backgroundColor: 'rgba(255, 255, 255, 1)',
+                borderWidth: 1,
+                borderStyle: 'solid',
+                borderColor: 'rgba(0, 0, 0, 1)',
+                borderImage: 'linear-gradient(90deg, rgba(223, 216, 216, 1) 0%, rgba(0, 0, 0, 1) 100%) 1',
+                boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)',
+                padding: 0,
+                display: 'flex',
+                flexWrap: 'wrap',
+                color: 'rgba(118, 25, 25, 1)',
+              }}
+            />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto group">
