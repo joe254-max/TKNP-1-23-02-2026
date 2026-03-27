@@ -20,13 +20,16 @@ const getLecturerPreview = () => {
 };
 
 const App: React.FC = () => {
+  const MESS_URL = 'http://127.0.0.1:3000';
   const [user, setUser] = useState<User | null>(null);
   const [resources, setResources] = useState<Resource[]>(MOCK_RESOURCES);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ResourceType | 'ALL'>('ALL');
-  const [view, setView] = useState<'home' | 'browse' | 'dashboard' | 'classes' | 'profile' | 'recordings' | 'classnet'>('home');
+  const [view, setView] = useState<'home' | 'browse' | 'dashboard' | 'classes' | 'profile' | 'recordings' | 'classnet' | 'mess'>('home');
   const [studentDashTab, setStudentDashTab] = useState<'PHYSICAL' | 'ONLINE'>('PHYSICAL');
+  const [messFrameLoaded, setMessFrameLoaded] = useState(false);
+  const [messFrameTimedOut, setMessFrameTimedOut] = useState(false);
   const isLecturerPreview = getLecturerPreview();
 
   // Persistence of login
@@ -81,6 +84,16 @@ const App: React.FC = () => {
     setView('classes');
   };
 
+  useEffect(() => {
+    if (view !== 'mess') return;
+    setMessFrameLoaded(false);
+    setMessFrameTimedOut(false);
+    const timer = window.setTimeout(() => {
+      setMessFrameTimedOut(true);
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [view]);
+
   if (!user) {
     return <Login onLogin={handleLogin} />;
   }
@@ -126,7 +139,7 @@ const App: React.FC = () => {
         
         <div
           className={`flex-1 overflow-y-auto bg-slate-50/50 ${
-            view === 'classnet' ? 'p-0' : 'p-4 md:p-10'
+            view === 'classnet' || view === 'mess' ? 'p-0' : 'p-4 md:p-10'
           } ${view === 'dashboard' || view === 'classes' ? 'max-w-screen-2xl mx-auto w-full' : ''}`}
         >
           {(view === 'home' || view === 'dashboard') && (
@@ -137,6 +150,7 @@ const App: React.FC = () => {
                 onBrowse={() => setView('browse')} 
                 onViewDashboard={() => navigateToStudentDashboard('PHYSICAL')}
                 onOpenClassnet={() => setView('classnet')}
+                onOpenMess={() => setView('mess')}
               />
               <div className="mt-8 sm:mt-16">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 mb-6 sm:mb-8">
@@ -233,6 +247,25 @@ const App: React.FC = () => {
           {view === 'classnet' && (
             <Classnet user={user} onExit={() => setView('home')} />
           )}
+
+          {view === 'mess' && (
+            <div className="h-full min-h-[75vh] bg-slate-950 p-2 sm:p-3">
+              {!messFrameLoaded && (
+                <div className="mb-2 rounded-lg border border-slate-700 bg-slate-900/80 p-3 text-xs text-slate-200">
+                  {messFrameTimedOut
+                    ? `Mess app is not reachable on ${MESS_URL}. Start it in the Mess folder with npm run dev.`
+                    : 'Loading Mess app...'}
+                </div>
+              )}
+              <iframe
+                title="Mess"
+                src={MESS_URL}
+                onLoad={() => setMessFrameLoaded(true)}
+                className="w-full h-[78vh] rounded-xl border border-slate-800 bg-white"
+              />
+            </div>
+          )}
+
         </div>
       </main>
 

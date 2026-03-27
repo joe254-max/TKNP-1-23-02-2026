@@ -7,9 +7,10 @@ interface HeroProps {
   onBrowse: () => void;
   onViewDashboard: (tab?: 'PHYSICAL' | 'ONLINE') => void;
   onOpenClassnet: () => void;
+  onOpenMess: () => void;
 }
 
-const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, onOpenClassnet }) => {
+const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, onOpenClassnet, onOpenMess }) => {
   const [val, setVal] = useState('');
   const [slideIndex, setSlideIndex] = useState(0);
   const firstName = useMemo(() => (user.name || '').trim().split(/\s+/)[0] || 'Friend', [user.name]);
@@ -200,9 +201,7 @@ const Hero: React.FC<HeroProps> = ({ user, onSearch, onBrowse, onViewDashboard, 
           <button
             type="button"
             className="group w-full h-[72px] sm:h-[80px] p-0 bg-[rgba(79,17,17,0.05)] border border-[rgba(92,16,16,0.1)] text-[#521414] backdrop-blur-xl rounded-none flex items-center justify-center gap-0 overflow-hidden hover:bg-rose-900/20 hover:border-rose-500/30 transition-all duration-500 shadow-2xl active:scale-95"
-            onClick={() => {
-              // Intentionally do not open Bondify/Classnet on "Mess" click.
-            }}
+            onClick={onOpenMess}
             style={{ backgroundClip: 'unset', WebkitBackgroundClip: 'unset' }}
           >
             <img
