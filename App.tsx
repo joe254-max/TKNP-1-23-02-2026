@@ -12,11 +12,8 @@ import Profile from './components/Profile.tsx';
 import RecordedClassesLibrary from './components/RecordedClassesLibrary.tsx';
 import Classnet from './components/Classnet.tsx';
 import { BookOpen, Search, X } from 'lucide-react';
-<<<<<<< HEAD
 import { requireSupabaseAuth } from './lib/supabaseAuthClient';
 import { primeProfileCache } from './lib/profile';
-=======
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
 
 const getLecturerPreview = () => {
   if (typeof window === 'undefined') return false;
@@ -27,10 +24,7 @@ const getLecturerPreview = () => {
 const App: React.FC = () => {
   const MESS_URL = 'http://127.0.0.1:3000';
   const [user, setUser] = useState<User | null>(null);
-<<<<<<< HEAD
   const [authReady, setAuthReady] = useState(false);
-=======
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
   const [resources, setResources] = useState<Resource[]>(MOCK_RESOURCES);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
@@ -41,7 +35,6 @@ const App: React.FC = () => {
   const [messFrameTimedOut, setMessFrameTimedOut] = useState(false);
   const isLecturerPreview = getLecturerPreview();
 
-<<<<<<< HEAD
   // Supabase session detection (supports OAuth redirect + refresh)
   useEffect(() => {
     let mounted = true;
@@ -163,18 +156,6 @@ const App: React.FC = () => {
       void subscription.unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-=======
-  // Persistence of login
-  useEffect(() => {
-    const currentSessionUser = sessionStorage.getItem('poly_library_user_current');
-    if (currentSessionUser) {
-      const parsedUser = JSON.parse(currentSessionUser);
-      setUser(parsedUser);
-      if (parsedUser.role !== UserRole.STUDENT) {
-        setView('dashboard');
-      }
-    }
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
   }, []);
 
   const filteredResources = useMemo(() => {
@@ -206,7 +187,6 @@ const App: React.FC = () => {
     }
   };
 
-<<<<<<< HEAD
   const handleLogout = async () => {
     try {
       const supabase = requireSupabaseAuth();
@@ -217,11 +197,6 @@ const App: React.FC = () => {
     setUser(null);
     sessionStorage.removeItem('poly_library_user_current');
     sessionStorage.removeItem('poly_google_oauth_role');
-=======
-  const handleLogout = () => {
-    setUser(null);
-    sessionStorage.removeItem('poly_library_user_current');
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
     setView('home');
   };
 
@@ -240,13 +215,9 @@ const App: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [view]);
 
-<<<<<<< HEAD
   if (!authReady) {
     return null;
   }
-
-=======
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
   if (!user) {
     return <Login onLogin={handleLogin} />;
   }

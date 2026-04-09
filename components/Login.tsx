@@ -2,11 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserRole, User } from '../types';
 import { DEPARTMENTS } from '../constants';
 import { registerUserInDb, authenticateUserFromDb } from '../database';
-<<<<<<< HEAD
 import { requireSupabaseAuth } from '../lib/supabaseAuthClient';
-=======
-import { signInWithGooglePopup } from '../lib/firebaseClient';
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
 import { ShieldAlert, Fingerprint, Key, ArrowLeft, RefreshCw, CheckCircle2, Lock, Eye, EyeOff } from 'lucide-react';
 
 // Define the missing LoginProps interface
@@ -98,11 +94,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     return () => clearTimeout(timeout);
   }, [displayedText, phase, currentQuoteIndex]);
 
-<<<<<<< HEAD
   const handleSubmit = async (e: React.FormEvent) => {
-=======
-  const handleSubmit = (e: React.FormEvent) => {
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
     e.preventDefault();
     setErrorMessage(null);
     
@@ -126,11 +118,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
 
       try {
-<<<<<<< HEAD
         const createdUser = await registerUserInDb({
-=======
-        const createdUser = registerUserInDb({
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
           name: name || 'Institutional User',
           email,
           role,
@@ -176,11 +164,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
 
       // Database authentication
-<<<<<<< HEAD
       const dbUser = await authenticateUserFromDb(email, password);
-=======
-      const dbUser = authenticateUserFromDb(email, password);
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
       if (dbUser) {
         // Enforce portal separation:
         // - Student portal only allows STUDENT accounts
@@ -210,7 +194,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
     try {
-<<<<<<< HEAD
       const supabase = requireSupabaseAuth();
 
       // Preserve the selected portal role across the OAuth redirect.
@@ -223,23 +206,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       });
 
       if (error) throw error;
-=======
-      const result = await signInWithGooglePopup();
-      const fbUser = result.user;
-      const derivedName =
-        fbUser.displayName ||
-        fbUser.email?.split('@')[0] ||
-        'Institutional User';
-
-      const appUser: User = {
-        id: fbUser.uid,
-        name: derivedName,
-        email: fbUser.email || email || 'unknown@googleuser',
-        role: role === UserRole.STUDENT ? UserRole.STUDENT : UserRole.LECTURER,
-      };
-
-      onLogin(appUser, rememberMe);
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
     } catch (err) {
       console.error('Google sign-in failed', err);
       const msg = (err as any)?.message || 'Google sign-in failed. Please try again.';

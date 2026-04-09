@@ -12,10 +12,6 @@
   "dependencies": {
     "@google/genai": "^1.38.0",
     "@supabase/supabase-js": "^2.99.1",
-<<<<<<< HEAD
-=======
-    "firebase": "^10.9.0",
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
     "framer-motion": "^11.0.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",

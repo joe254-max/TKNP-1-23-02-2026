@@ -1,9 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-<<<<<<< HEAD
 import { addSignal, listenSignals, removeSignal } from '../lib/tknpSupabaseSignals';
-=======
-import { addSignal, listenSignals, removeSignal } from '../lib/firebaseClient';
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
 import { 
   ArrowLeft, Users, Calendar, Clock, GraduationCap, 
   BookOpen, FileText, BarChart3, Presentation, Plus, 
@@ -145,12 +141,8 @@ const StudentClasses: React.FC<{
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileForm, setProfileForm] = useState<StudentProfile>(() => {
     const p = loadStudentProfile();
-<<<<<<< HEAD
     const userStr =
       typeof window !== 'undefined' ? sessionStorage.getItem('poly_library_user_current') : null;
-=======
-    const userStr = typeof window !== 'undefined' ? (localStorage.getItem('poly_library_user') || sessionStorage.getItem('poly_library_user')) : null;
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
     const name = userStr ? (() => { try { return JSON.parse(userStr).name || ''; } catch { return ''; } })() : '';
     return p ? { ...p } : { fullName: name, schoolRegistryId: '', phone: '', gender: '' };
   });
@@ -250,12 +242,8 @@ const StudentClasses: React.FC<{
   };
 
   const getStudentProfile = (): StudentProfile => {
-<<<<<<< HEAD
     const userStr =
       typeof window !== 'undefined' ? sessionStorage.getItem('poly_library_user_current') : null;
-=======
-    const userStr = typeof window !== 'undefined' ? (localStorage.getItem('poly_library_user') || sessionStorage.getItem('poly_library_user')) : null;
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
     let user: { id?: string; name?: string } | null = null;
     if (userStr) {
       try {

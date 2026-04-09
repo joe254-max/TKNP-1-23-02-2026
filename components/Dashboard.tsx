@@ -9,11 +9,7 @@ import {
   UserCheck2, UserX2, Filter, RotateCcw, Info, Printer, Lock, History, FileText, CloudUpload, Mail, BarChart3, ArrowRight, ExternalLink, Monitor, Zap, Globe, Layers, BookOpen, Clock, Trash2, CalendarPlus, TrendingUp, AlertTriangle, Briefcase, Calendar, Power, DoorOpen
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
-<<<<<<< HEAD
 import { addSignal, listenSignals, removeSignal } from '../lib/tknpSupabaseSignals';
-=======
-import { addSignal, listenSignals, removeSignal } from '../lib/firebaseClient';
->>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
 import { jsPDF } from 'jspdf';
 import { saveRecording, getAllRecordings, type RecordedSession } from '../lib/recordingsDb';
 
