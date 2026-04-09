@@ -38,7 +38,25 @@ import {
   SlidersHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+<<<<<<< HEAD
 import { requireSupabase } from './supabase';
+=======
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  orderBy, 
+  addDoc, 
+  updateDoc, 
+  doc, 
+  deleteDoc, 
+  getDocs, 
+  serverTimestamp, 
+  Timestamp 
+} from 'firebase/firestore';
+import { db } from './firebase';
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
 import { MenuItem, CartItem, Order, User } from './types';
 import { initiateStkPush } from './services/api';
 import { clsx, type ClassValue } from 'clsx';
@@ -193,6 +211,7 @@ export default function App() {
     }, 2000);
   };
 
+<<<<<<< HEAD
   // --- Supabase Sync ---
   useEffect(() => {
     const supabase = requireSupabase();
@@ -238,6 +257,33 @@ export default function App() {
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+=======
+  // --- Firebase Sync ---
+  useEffect(() => {
+    // Sync Menu
+    const menuUnsub = onSnapshot(collection(db, 'menu'), (snapshot) => {
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MenuItem));
+      if (items.length === 0 && menu.length === 0) {
+        // Seed initial data if empty (for demo)
+        setMenu(INITIAL_MENU);
+      } else {
+        setMenu(items);
+      }
+    });
+
+    // Sync Orders
+    const ordersUnsub = onSnapshot(
+      query(collection(db, 'orders'), orderBy('created_at', 'desc')), 
+      (snapshot) => {
+        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+        setOrders(items);
+      }
+    );
+
+    return () => {
+      menuUnsub();
+      ordersUnsub();
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
     };
   }, []);
 
@@ -322,9 +368,13 @@ export default function App() {
     setCheckoutStatus('pending');
 
     try {
+<<<<<<< HEAD
       const supabase = requireSupabase();
 
       // 1. Create Order in Supabase
+=======
+      // 1. Create Order in Firestore
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
       const orderData = {
         user_id: user.user_id,
         full_name: user.full_name,
@@ -342,6 +392,7 @@ export default function App() {
         created_at: new Date().toISOString()
       };
 
+<<<<<<< HEAD
       const { data: insertedOrder, error: insertErr } = await supabase
         .from('orders')
         .insert(orderData)
@@ -360,6 +411,18 @@ export default function App() {
           .from('orders')
           .update({ checkout_request_id: response.CheckoutRequestID })
           .eq('id', orderId);
+=======
+      const orderRef = await addDoc(collection(db, 'orders'), orderData);
+
+      // 2. Initiate M-Pesa STK Push
+      const response = await initiateStkPush(cartTotal, phoneNumber, orderRef.id);
+      
+      if (response && response.ResponseCode === "0") {
+        // Update order with CheckoutRequestID
+        await updateDoc(doc(db, 'orders', orderRef.id), {
+          checkout_request_id: response.CheckoutRequestID
+        });
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
         setCheckoutStatus('success');
         setCheckoutError(null);
         setCart([]);
@@ -387,8 +450,12 @@ export default function App() {
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     try {
+<<<<<<< HEAD
       const supabase = requireSupabase();
       await supabase.from('orders').update({ status }).eq('id', orderId);
+=======
+      await updateDoc(doc(db, 'orders', orderId), { status });
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
     } catch (error) {
       console.error("Update Status Error:", error);
     }
@@ -1134,10 +1201,17 @@ export default function App() {
     const handleAddItem = async () => {
       if (!newItem.name || !newItem.price) return;
       try {
+<<<<<<< HEAD
         const supabase = requireSupabase();
         await supabase
           .from('menu')
           .insert({ ...(newItem as any), is_available: true });
+=======
+        await addDoc(collection(db, 'menu'), {
+          ...newItem,
+          is_available: true
+        });
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
         setNewItem({
           name: '',
           description: '',
@@ -1171,8 +1245,12 @@ export default function App() {
 
     const toggleAvailability = async (id: string, current: boolean) => {
       try {
+<<<<<<< HEAD
         const supabase = requireSupabase();
         await supabase.from('menu').update({ is_available: !current }).eq('id', id);
+=======
+        await updateDoc(doc(db, 'menu', id), { is_available: !current });
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
       } catch (error) {
         console.error("Toggle Error:", error);
       }
@@ -1181,8 +1259,12 @@ export default function App() {
     const deleteItem = async (id: string) => {
       if (!confirm("Are you sure you want to delete this item?")) return;
       try {
+<<<<<<< HEAD
         const supabase = requireSupabase();
         await supabase.from('menu').delete().eq('id', id);
+=======
+        await deleteDoc(doc(db, 'menu', id));
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
       } catch (error) {
         console.error("Delete Error:", error);
       }

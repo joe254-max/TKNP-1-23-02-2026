@@ -19,9 +19,15 @@ const Profile: React.FC<ProfileProps> = ({ user, onSaved }) => {
     else setProfile((prev) => ({ ...DEFAULT_PROFILE, ...prev, fullName: user.name || prev.fullName }));
   }, [user.id, user.name]);
 
+<<<<<<< HEAD
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await saveStoredProfile(user.id, profile);
+=======
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveStoredProfile(user.id, profile);
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
     setSaved(true);
     onSaved?.();
     setTimeout(() => setSaved(false), 2000);

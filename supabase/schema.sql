@@ -122,6 +122,7 @@ begin
   end if;
 end $$;
 
+<<<<<<< HEAD
 -- FoodHub (Mess sub-app) tables (replacing Firestore collections)
 create table if not exists public.menu (
   id uuid primary key default gen_random_uuid(),
@@ -174,12 +175,15 @@ begin
   end if;
 end $$;
 
+=======
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
 -- Storage bucket for story media
 -- Note: This is a demo setup (bucket is public and RLS is open).
 insert into storage.buckets (id, name, public)
 values ('classnet-stories', 'classnet-stories', true)
 on conflict (id) do nothing;
 
+<<<<<<< HEAD
 do $$
 begin
   begin
@@ -204,10 +208,22 @@ begin
     when undefined_table then
       raise notice 'Skipping storage.objects policy creation (table not available).';
   end;
+=======
+alter table storage.objects enable row level security;
+do $$
+begin
+  if not exists (select 1 from pg_policies where policyname = 'demo_story_objects_all') then
+    create policy demo_story_objects_all on storage.objects
+      for all
+      using (bucket_id = 'classnet-stories')
+      with check (bucket_id = 'classnet-stories');
+  end if;
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
 end $$;
 
 -- Realtime (optional): enable in Supabase UI if needed.
 
+<<<<<<< HEAD
 -- TKNP (portal) tables
 -- Create these tables in addition to the existing `classnet_*` demo tables.
 
@@ -319,3 +335,5 @@ begin
   end if;
 end $$;
 
+=======
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3

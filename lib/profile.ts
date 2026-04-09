@@ -1,5 +1,6 @@
 import type { UserProfile } from '../types';
 
+<<<<<<< HEAD
 import { requireSupabaseAuth } from './supabaseAuthClient';
 
 const profileCache = new Map<string, UserProfile>();
@@ -90,6 +91,26 @@ export async function saveStoredProfile(userId: string, profile: UserProfile): P
   if (error) throw error;
 
   profileCache.set(userId, profile);
+=======
+const PROFILE_KEY_PREFIX = 'poly_user_profile_';
+
+export function getProfileKey(userId: string): string {
+  return `${PROFILE_KEY_PREFIX}${userId}`;
+}
+
+export function getStoredProfile(userId: string): UserProfile | null {
+  try {
+    const raw = localStorage.getItem(getProfileKey(userId));
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+export function saveStoredProfile(userId: string, profile: UserProfile): void {
+  localStorage.setItem(getProfileKey(userId), JSON.stringify(profile));
+>>>>>>> a2dc43e97b1949a1efe4afb9dfd445451e85d4d3
 }
 
 export const DEFAULT_PROFILE: UserProfile = {
