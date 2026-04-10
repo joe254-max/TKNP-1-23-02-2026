@@ -46,9 +46,6 @@ const App: React.FC = () => {
       const cachedProfile = getStoredProfile(portalUser.id);
       const profileIsComplete = isProfileComplete(cachedProfile, portalUser.role);
       setMustCompleteProfile(!profileIsComplete);
-      if (!profileIsComplete) {
-        setView('profile');
-      }
     } finally {
       setProfileCheckPending(false);
     }
@@ -288,10 +285,6 @@ const App: React.FC = () => {
         user={user} 
         onLogout={handleLogout} 
         setView={(v) => {
-          if (mustCompleteProfile && v !== 'profile') {
-            setView('profile');
-            return;
-          }
           if (v === 'classes') navigateToStudentDashboard('PHYSICAL');
           else setView(v as any);
         }} 
@@ -422,6 +415,7 @@ const App: React.FC = () => {
             <Profile
               user={user}
               forceComplete={mustCompleteProfile}
+              onClose={() => setView(user.role === UserRole.STUDENT ? 'home' : 'dashboard')}
               onSaved={() => {
                 setMustCompleteProfile(false);
                 setView(user.role === UserRole.STUDENT ? 'home' : 'dashboard');

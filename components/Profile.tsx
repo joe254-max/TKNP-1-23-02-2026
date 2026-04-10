@@ -7,10 +7,11 @@ import { User as UserIcon, Hash, Smartphone, BookOpen, Building2, Calendar, Cake
 interface ProfileProps {
   user: User;
   onSaved?: () => void;
+  onClose?: () => void;
   forceComplete?: boolean;
 }
 
-const Profile: React.FC<ProfileProps> = ({ user, onSaved, forceComplete = false }) => {
+const Profile: React.FC<ProfileProps> = ({ user, onSaved, onClose, forceComplete = false }) => {
   const isStudent = user.role === UserRole.STUDENT;
   const [profile, setProfile] = useState(() => getStoredProfile(user.id) || { ...DEFAULT_PROFILE, fullName: user.name || '' });
   const [saved, setSaved] = useState(false);
@@ -47,7 +48,18 @@ const Profile: React.FC<ProfileProps> = ({ user, onSaved, forceComplete = false 
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
-      <h1 className="text-3xl sm:text-4xl font-black text-slate-900 uppercase tracking-tight mb-2">My Profile</h1>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h1 className="text-3xl sm:text-4xl font-black text-slate-900 uppercase tracking-tight">My Profile</h1>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl border border-slate-300 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition"
+          >
+            Close
+          </button>
+        )}
+      </div>
       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em] mb-8">
         {isStudent
           ? 'Fill once – used for registration, live class participants, and student forms.'
