@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { getAllRecordings, type RecordedSession } from '../lib/recordingsDb';
 import { getStoredProfile } from '../lib/profile';
-import { fetchAllSchoolClasses } from '../lib/schoolClassService';
+import { fetchAllSchoolClasses, subscribeSchoolClasses } from '../lib/schoolClassService';
 
 interface ClassItem {
   id: string;
@@ -42,6 +42,18 @@ export interface StudentProfile {
   department?: string;
   classCode?: string;
 }
+
+const DEPARTMENT_ALIASES: Record<string, string> = {
+  MECHAINCALENGINEERING: 'MECHANICALENGINEERING',
+};
+
+const normalizeDepartment = (value?: string): string => {
+  const normalized = (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return DEPARTMENT_ALIASES[normalized] ?? normalized;
+};
+
+const normalizeClassCode = (value?: string): string =>
+  (value || '').trim().toUpperCase().replace(/\s+/g, '');
 
 function loadMyClasses(): ClassItem[] {
   try {
@@ -216,19 +228,25 @@ const StudentClasses: React.FC<{
           schedule: r.class_mode === 'ONLINE' ? 'Scheduled by Lecturer' : 'Scheduled by Lecturer',
           type: r.class_mode,
           studentCount: r.student_count ?? 0,
-          department: (r.department || '').toUpperCase(),
+          department: r.department || '',
           platform: r.class_mode === 'ONLINE' ? 'Microsoft Teams' : undefined,
           link: r.class_mode === 'ONLINE' ? '#' : undefined,
           isLive: false,
         }));
         setDbClasses(mapped);
       } catch {
-        setDbClasses([]);
+        if (mounted) setDbClasses([]);
       }
     };
+
     void loadDbClasses();
+    const unsubscribe = subscribeSchoolClasses(() => {
+      void loadDbClasses();
+    });
+
     return () => {
       mounted = false;
+      unsubscribe();
     };
   }, []);
 
@@ -702,8 +720,8 @@ const StudentClasses: React.FC<{
 
   const filteredGlobalClasses = useMemo(() => {
     const studentProfileData = getStudentProfile();
-    const profileDept = (studentProfileData.department || '').trim().toUpperCase();
-    const profileClassCode = (studentProfileData.classCode || '').trim().toUpperCase();
+    const profileDept = normalizeDepartment(studentProfileData.department);
+    const profileClassCode = normalizeClassCode(studentProfileData.classCode);
     if (!profileDept || !profileClassCode) return [];
 
     const combinedRegistry = [...GLOBAL_AVAILABLE_CLASSES, ...registryClasses, ...dbClasses];
@@ -711,8 +729,8 @@ const StudentClasses: React.FC<{
 
     return uniqueRegistry.filter(gc => {
       const alreadyJoined = myClasses.some(mc => mc.id === gc.id || (mc.title === gc.title && mc.teacher === gc.teacher));
-      const normalizedDept = (gc.department || '').trim().toUpperCase();
-      const classCode = (gc.code || gc.title.split('-')[0] || '').trim().toUpperCase();
+      const normalizedDept = normalizeDepartment(gc.department);
+      const classCode = normalizeClassCode(gc.code || gc.title.split('-')[0] || '');
       const matchesSearch = gc.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            gc.teacher.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            gc.department.toLowerCase().includes(searchQuery.toLowerCase());
@@ -724,16 +742,16 @@ const StudentClasses: React.FC<{
 
   const availableOnlineClasses = useMemo(() => {
     const studentProfileData = getStudentProfile();
-    const profileDept = (studentProfileData.department || '').trim().toUpperCase();
-    const profileClassCode = (studentProfileData.classCode || '').trim().toUpperCase();
+    const profileDept = normalizeDepartment(studentProfileData.department);
+    const profileClassCode = normalizeClassCode(studentProfileData.classCode);
     if (!profileDept || !profileClassCode) return [];
 
     const combinedRegistry = [...GLOBAL_AVAILABLE_CLASSES, ...registryClasses, ...dbClasses];
     const uniqueRegistry = Array.from(new Map(combinedRegistry.map(item => [item.id + item.title, item])).values());
     return uniqueRegistry
       .filter(c => c.type === 'ONLINE')
-      .filter(c => (c.department || '').trim().toUpperCase() === profileDept)
-      .filter(c => ((c.code || c.title.split('-')[0] || '').trim().toUpperCase()) === profileClassCode)
+      .filter(c => normalizeDepartment(c.department) === profileDept)
+      .filter(c => normalizeClassCode(c.code || c.title.split('-')[0] || '') === profileClassCode)
       .filter(c => !myClasses.some(mc => mc.id === c.id || (mc.title === c.title && mc.teacher === c.teacher)));
   }, [myClasses, registryClasses, dbClasses]);
 
