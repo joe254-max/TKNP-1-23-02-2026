@@ -764,9 +764,11 @@ const StudentClasses: React.FC<{
       const alreadyJoined = myClasses.some(mc => mc.id === gc.id || (mc.title === gc.title && mc.teacher === gc.teacher));
       const normalizedDept = normalizeDepartment(gc.department);
       const classCode = extractClassCode(gc);
-      const matchesSearch = gc.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           gc.teacher.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           gc.department.toLowerCase().includes(searchQuery.toLowerCase());
+      const title = String(gc.title || '').toLowerCase();
+      const teacher = String(gc.teacher || '').toLowerCase();
+      const department = String(gc.department || '').toLowerCase();
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = title.includes(query) || teacher.includes(query) || department.includes(query);
       const matchesProfile = matchesDepartment(normalizedDept, profileDept) && matchesClassCode(classCode, profileClassCode);
       return !alreadyJoined && matchesSearch && matchesProfile;
     });
