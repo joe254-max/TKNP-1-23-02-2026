@@ -53,7 +53,7 @@ const normalizeDepartment = (value?: string): string => {
 };
 
 const normalizeClassCode = (value?: string): string =>
-  (value || '').trim().toUpperCase().replace(/\s+/g, '');
+  (value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 const extractClassCode = (cls: ClassItem): string => {
   const fromCode = normalizeClassCode(cls.code);
@@ -62,6 +62,12 @@ const extractClassCode = (cls: ClassItem): string => {
   const match = title.match(/[A-Z0-9]+(?:[-/][A-Z0-9]+)*/);
   return normalizeClassCode(match?.[0] || '');
 };
+
+const matchesDepartment = (classDept: string, profileDept: string): boolean =>
+  classDept === profileDept || classDept.includes(profileDept) || profileDept.includes(classDept);
+
+const matchesClassCode = (classCode: string, profileCode: string): boolean =>
+  classCode === profileCode || classCode.startsWith(profileCode) || profileCode.startsWith(classCode);
 
 function loadMyClasses(): ClassItem[] {
   try {
@@ -742,7 +748,7 @@ const StudentClasses: React.FC<{
       const matchesSearch = gc.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            gc.teacher.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            gc.department.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesProfile = normalizedDept === profileDept && classCode === profileClassCode;
+      const matchesProfile = matchesDepartment(normalizedDept, profileDept) && matchesClassCode(classCode, profileClassCode);
       return !alreadyJoined && matchesSearch && matchesProfile;
     });
   }, [myClasses, searchQuery, registryClasses, dbClasses]);
@@ -757,8 +763,8 @@ const StudentClasses: React.FC<{
     const uniqueRegistry = Array.from(new Map(combinedRegistry.map(item => [item.id + item.title, item])).values());
     return uniqueRegistry
       .filter(c => c.type === 'ONLINE')
-      .filter(c => normalizeDepartment(c.department) === profileDept)
-      .filter(c => extractClassCode(c) === profileClassCode)
+      .filter(c => matchesDepartment(normalizeDepartment(c.department), profileDept))
+      .filter(c => matchesClassCode(extractClassCode(c), profileClassCode))
       .filter(c => !myClasses.some(mc => mc.id === c.id || (mc.title === c.title && mc.teacher === c.teacher)));
   }, [myClasses, registryClasses, dbClasses]);
 
