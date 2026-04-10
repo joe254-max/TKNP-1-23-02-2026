@@ -1,13 +1,18 @@
 
 import React from 'react';
 import { DEPARTMENTS } from '../constants';
+import { UserRole } from '../types';
+import { BookOpen } from 'lucide-react';
 
 interface SidebarProps {
   selectedDept: string | null;
   onSelectDept: (dept: string | null) => void;
+  userRole?: UserRole;
+  onOpenLibraryManager?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ selectedDept, onSelectDept }) => {
+const Sidebar: React.FC<SidebarProps> = ({ selectedDept, onSelectDept, userRole, onOpenLibraryManager }) => {
+  const canManageLibrary = userRole === UserRole.LECTURER || userRole === UserRole.ADMIN;
   return (
     <aside className="w-full md:w-64 lg:w-72 bg-white border-b md:border-b-0 md:border-r border-slate-200 h-auto md:h-[calc(100vh-73px)] overflow-y-auto p-4 sm:p-6 flex-shrink-0">
       <h3 className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-3 sm:mb-6 px-2 sm:px-4">Departments</h3>
@@ -36,6 +41,23 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedDept, onSelectDept }) => {
           </button>
         ))}
       </div>
+
+      {canManageLibrary && onOpenLibraryManager && (
+        <div className="mt-6 md:mt-8">
+          <h3 className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-3 sm:mb-4 px-2 sm:px-4">
+            Lecturer Tools
+          </h3>
+          <div className="px-2 sm:px-4">
+            <button
+              onClick={onOpenLibraryManager}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#3d0413] text-white px-4 py-3 text-[10px] font-black uppercase tracking-widest hover:bg-black transition"
+            >
+              <BookOpen size={14} />
+              E-Library Manager
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 sm:mt-12 hidden md:block">
         <h3 className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-4 sm:mb-6 px-2 sm:px-4">Discovery Tools</h3>

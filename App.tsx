@@ -13,7 +13,7 @@ import RecordedClassesLibrary from './components/RecordedClassesLibrary.tsx';
 import Classnet from './components/Classnet.tsx';
 import { BookOpen, Search, X } from 'lucide-react';
 import { requireSupabaseAuth } from './lib/supabaseAuthClient';
-import { primeProfileCache } from './lib/profile';
+import { getStoredProfile, isProfileComplete, primeProfileCache } from './lib/profile';
 
 const getLecturerPreview = () => {
   if (typeof window === 'undefined') return false;
@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const MESS_URL = 'http://127.0.0.1:3000';
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [authLoadingMessage, setAuthLoadingMessage] = useState('Loading portal...');
   const [resources, setResources] = useState<Resource[]>(MOCK_RESOURCES);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
@@ -33,11 +34,34 @@ const App: React.FC = () => {
   const [studentDashTab, setStudentDashTab] = useState<'PHYSICAL' | 'ONLINE'>('PHYSICAL');
   const [messFrameLoaded, setMessFrameLoaded] = useState(false);
   const [messFrameTimedOut, setMessFrameTimedOut] = useState(false);
+  const [mustCompleteProfile, setMustCompleteProfile] = useState(false);
+  const [profileCheckPending, setProfileCheckPending] = useState(false);
+  const [staffDashboardForceView, setStaffDashboardForceView] = useState<'HOME' | 'EREPOSITORY' | null>(null);
   const isLecturerPreview = getLecturerPreview();
+
+  const refreshProfileGate = async (portalUser: User) => {
+    setProfileCheckPending(true);
+    try {
+      await primeProfileCache(portalUser.id, portalUser.name);
+      const cachedProfile = getStoredProfile(portalUser.id);
+      const profileIsComplete = isProfileComplete(cachedProfile, portalUser.role);
+      setMustCompleteProfile(!profileIsComplete);
+      if (!profileIsComplete) {
+        setView('profile');
+      }
+    } finally {
+      setProfileCheckPending(false);
+    }
+  };
 
   // Supabase session detection (supports OAuth redirect + refresh)
   useEffect(() => {
     let mounted = true;
+    const authGuardTimer = window.setTimeout(() => {
+      if (!mounted) return;
+      setAuthLoadingMessage('Auth check is taking longer than expected. Showing login...');
+      setAuthReady(true);
+    }, 8000);
 
     const loadPortalUser = async (authUserId: string) => {
       const supabase = requireSupabaseAuth();
@@ -116,8 +140,8 @@ const App: React.FC = () => {
         if (!mounted) return;
 
         if (portalUser) {
-          await primeProfileCache(portalUser.id, portalUser.name);
           handleLogin(portalUser, true);
+          void refreshProfileGate(portalUser);
         } else {
           setUser(null);
           setView('home');
@@ -143,8 +167,8 @@ const App: React.FC = () => {
 
         const portalUser = await ensurePortalUser(session);
         if (portalUser) {
-          await primeProfileCache(portalUser.id, portalUser.name);
           handleLogin(portalUser, true);
+          void refreshProfileGate(portalUser);
         }
       } catch (err) {
         console.error('Supabase auth state change failed', err);
@@ -153,6 +177,7 @@ const App: React.FC = () => {
 
     return () => {
       mounted = false;
+      window.clearTimeout(authGuardTimer);
       void subscription.unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,6 +201,7 @@ const App: React.FC = () => {
 
   const handleLogin = (u: User, remember: boolean) => {
     setUser(u);
+    setMustCompleteProfile(false);
     const userStr = JSON.stringify(u);
 
     sessionStorage.setItem('poly_library_user_current', userStr);
@@ -195,6 +221,8 @@ const App: React.FC = () => {
       // ignore
     }
     setUser(null);
+    setMustCompleteProfile(false);
+    setProfileCheckPending(false);
     sessionStorage.removeItem('poly_library_user_current');
     sessionStorage.removeItem('poly_google_oauth_role');
     setView('home');
@@ -216,7 +244,14 @@ const App: React.FC = () => {
   }, [view]);
 
   if (!authReady) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center px-6">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#3d0413]" />
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-600">{authLoadingMessage}</p>
+        </div>
+      </div>
+    );
   }
   if (!user) {
     return <Login onLogin={handleLogin} />;
@@ -225,8 +260,8 @@ const App: React.FC = () => {
   if (user.role !== UserRole.STUDENT && (view === 'dashboard' || view === 'home')) {
     if (isLecturerPreview) {
       return (
-        <div className="min-h-screen bg-slate-50">
-          <Navbar user={user} onLogout={handleLogout} setView={setView} currentView={view} />
+        <div className="min-h-screen bg-white">
+          <Navbar user={user} onLogout={handleLogout} setView={setView} currentView={view} profileComplete={!mustCompleteProfile} />
           <main className="flex-1 p-4 md:p-10 overflow-y-auto bg-slate-50/50 max-w-screen-2xl mx-auto w-full">
             <StudentClasses initialTab="ONLINE" isLecturerPreview />
           </main>
@@ -234,9 +269,15 @@ const App: React.FC = () => {
       );
     }
     return (
-      <div className="min-h-screen bg-slate-50">
-        <Navbar user={user} onLogout={handleLogout} setView={setView} currentView={view} />
-        <StaffDashboardHome user={user} resources={resources} />
+      <div className="min-h-screen bg-white">
+        <Navbar user={user} onLogout={handleLogout} setView={setView} currentView={view} profileComplete={!mustCompleteProfile} />
+        <StaffDashboardHome
+          user={user}
+          resources={resources}
+          onOpenRepository={() => setView('browse')}
+          forceView={staffDashboardForceView}
+          onForceViewHandled={() => setStaffDashboardForceView(null)}
+        />
       </div>
     );
   }
@@ -247,17 +288,34 @@ const App: React.FC = () => {
         user={user} 
         onLogout={handleLogout} 
         setView={(v) => {
+          if (mustCompleteProfile && v !== 'profile') {
+            setView('profile');
+            return;
+          }
           if (v === 'classes') navigateToStudentDashboard('PHYSICAL');
           else setView(v as any);
         }} 
-        currentView={view} 
+        currentView={view}
+        profileComplete={!mustCompleteProfile}
       />
+      {profileCheckPending && (
+        <div className="bg-[#3d0413] text-white text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2 text-center">
+          Verifying profile...
+        </div>
+      )}
       
       <main className="flex-1 flex flex-col md:flex-row">
         {view === 'browse' && (
           <Sidebar 
             selectedDept={selectedDept} 
             onSelectDept={setSelectedDept} 
+            userRole={user.role}
+            onOpenLibraryManager={() => {
+              if (user.role === UserRole.LECTURER || user.role === UserRole.ADMIN) {
+                setStaffDashboardForceView('EREPOSITORY');
+                setView('dashboard');
+              }
+            }}
           />
         )}
         
@@ -361,7 +419,14 @@ const App: React.FC = () => {
           )}
 
           {view === 'profile' && (
-            <Profile user={user} onSaved={() => setView(user.role === UserRole.STUDENT ? 'home' : 'dashboard')} />
+            <Profile
+              user={user}
+              forceComplete={mustCompleteProfile}
+              onSaved={() => {
+                setMustCompleteProfile(false);
+                setView(user.role === UserRole.STUDENT ? 'home' : 'dashboard');
+              }}
+            />
           )}
 
           {view === 'recordings' && (

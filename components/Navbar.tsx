@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
-import { LayoutDashboard, GraduationCap, Library, LogOut, Menu, X, UserCircle, PlayCircle } from 'lucide-react';
+import { LayoutDashboard, GraduationCap, LogOut, Menu, X, UserCircle, PlayCircle } from 'lucide-react';
 
 type ViewType = 'home' | 'browse' | 'dashboard' | 'classes' | 'profile' | 'recordings' | 'classnet';
 
@@ -9,9 +9,10 @@ interface NavbarProps {
   onLogout: () => void;
   setView: (v: ViewType) => void;
   currentView: string;
+  profileComplete?: boolean;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView, profileComplete = true }) => {
   const isStudent = user.role === UserRole.STUDENT;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -55,7 +56,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
             }`}
           >
             <LayoutDashboard size={14} />
-            Dashboard
+            Home
           </button>
           
           <button 
@@ -70,15 +71,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
             My Classes
           </button>
 
-          <button 
-            onClick={() => handleNavClick('browse')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              currentView === 'browse' ? 'text-[#3d0413]' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Library size={14} />
-            E-Repository
-          </button>
           <button 
             onClick={() => handleNavClick('recordings')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -100,6 +92,15 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
+          <span
+            className={`hidden md:inline-flex items-center rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest ${
+              profileComplete
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-amber-50 text-amber-700 border border-amber-200'
+            }`}
+          >
+            {profileComplete ? 'Profile Complete' : 'Complete Profile'}
+          </span>
           <div className="text-right hidden sm:block pr-2 sm:pr-4">
             <p className="text-[9px] sm:text-[10px] font-black text-slate-900 leading-none truncate max-w-[80px] sm:max-w-[120px]">{user.name.toUpperCase()}</p>
             <p className="text-[7px] sm:text-[8px] text-slate-400 uppercase font-black tracking-widest mt-1">{user.role}</p>
@@ -132,7 +133,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
               }`}
             >
               <LayoutDashboard size={16} />
-              Dashboard
+              Home
             </button>
             
             <button 
@@ -147,15 +148,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView })
               My Classes
             </button>
 
-            <button 
-              onClick={() => handleNavClick('browse')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${
-                currentView === 'browse' ? 'bg-[#fdf2f2] text-[#3d0413]' : 'text-slate-500 hover:bg-slate-50'
-              }`}
-            >
-              <Library size={16} />
-              E-Repository
-            </button>
             <button onClick={() => handleNavClick('recordings')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all text-slate-500 hover:bg-slate-50">
               <PlayCircle size={16} />
               Recordings
