@@ -55,6 +55,14 @@ const normalizeDepartment = (value?: string): string => {
 const normalizeClassCode = (value?: string): string =>
   (value || '').trim().toUpperCase().replace(/\s+/g, '');
 
+const extractClassCode = (cls: ClassItem): string => {
+  const fromCode = normalizeClassCode(cls.code);
+  if (fromCode) return fromCode;
+  const title = (cls.title || '').toUpperCase();
+  const match = title.match(/[A-Z0-9]+(?:[-/][A-Z0-9]+)*/);
+  return normalizeClassCode(match?.[0] || '');
+};
+
 function loadMyClasses(): ClassItem[] {
   try {
     const raw = localStorage.getItem(MY_CLASSES_STORAGE_KEY);
@@ -730,15 +738,14 @@ const StudentClasses: React.FC<{
     return uniqueRegistry.filter(gc => {
       const alreadyJoined = myClasses.some(mc => mc.id === gc.id || (mc.title === gc.title && mc.teacher === gc.teacher));
       const normalizedDept = normalizeDepartment(gc.department);
-      const classCode = normalizeClassCode(gc.code || gc.title.split('-')[0] || '');
+      const classCode = extractClassCode(gc);
       const matchesSearch = gc.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            gc.teacher.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            gc.department.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTab = (activeTab === 'PHYSICAL' ? gc.type === 'PHYSICAL' : gc.type === 'ONLINE');
       const matchesProfile = normalizedDept === profileDept && classCode === profileClassCode;
-      return !alreadyJoined && matchesSearch && matchesTab && matchesProfile;
+      return !alreadyJoined && matchesSearch && matchesProfile;
     });
-  }, [myClasses, searchQuery, activeTab, registryClasses, dbClasses]);
+  }, [myClasses, searchQuery, registryClasses, dbClasses]);
 
   const availableOnlineClasses = useMemo(() => {
     const studentProfileData = getStudentProfile();
@@ -751,7 +758,7 @@ const StudentClasses: React.FC<{
     return uniqueRegistry
       .filter(c => c.type === 'ONLINE')
       .filter(c => normalizeDepartment(c.department) === profileDept)
-      .filter(c => normalizeClassCode(c.code || c.title.split('-')[0] || '') === profileClassCode)
+      .filter(c => extractClassCode(c) === profileClassCode)
       .filter(c => !myClasses.some(mc => mc.id === c.id || (mc.title === c.title && mc.teacher === c.teacher)));
   }, [myClasses, registryClasses, dbClasses]);
 
