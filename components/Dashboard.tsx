@@ -23,7 +23,7 @@ interface DashboardProps {
   onForceViewHandled?: () => void;
 }
 
-type SystemView = 'HOME' | 'PHYSICAL_CLASS_DETAIL' | 'ONLINE_CLASS_DETAIL' | 'EREPOSITORY';
+type SystemView = 'HOME' | 'PHYSICAL_CLASS_DETAIL' | 'ONLINE_CLASS_DETAIL' | 'EREPOSITORY' | 'ASSESSMENTS' | 'SETTINGS';
 type ClassTab = 'REGISTER' | 'TIME TABLE' | 'STUDENTS' | 'MATERIALS';
 type MaterialCategory = 'LECTURE_NOTES' | 'LAB_MANUALS' | 'PAST_PAPERS';
 
@@ -381,6 +381,30 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
     } catch {
       showToast('Could not load cloud timetable; showing local schedule', 'info');
     }
+  };
+
+  const openPhysicalClassTab = (tab: ClassTab) => {
+    const targetClass = selectedPhysicalClass || physicalClasses[0] || null;
+    if (!targetClass) {
+      setEditingNode(null);
+      setProvisionType('PHYSICAL');
+      setIsCreateClassModalOpen(true);
+      showToast('Create a physical class first', 'info');
+      return;
+    }
+    setSelectedPhysicalClass(targetClass);
+    setCurrentView('PHYSICAL_CLASS_DETAIL');
+    setActiveClassTab(tab);
+  };
+
+  const openLiveClassesFromSidebar = () => {
+    const targetLiveClass = selectedOnlineClass || virtualClasses[0] || null;
+    if (!targetLiveClass) {
+      showToast('No live class found. Create one first.', 'info');
+      return;
+    }
+    setSelectedOnlineClass(targetLiveClass);
+    setCurrentView('ONLINE_CLASS_DETAIL');
   };
 
   const handleToggleMic = () => {
@@ -1066,6 +1090,44 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
     );
   };
 
+  const renderAssessments = () => (
+    <div className="animate-in fade-in duration-500">
+      <div className="bg-white rounded-2xl border border-[#eddde0] p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-black text-[#1a0208] uppercase tracking-tight">Assessments</h2>
+            <p className="text-sm text-[#9a7880] mt-1">Manage assessments, marks, and class evaluation workflows.</p>
+          </div>
+          <button
+            onClick={() => openPhysicalClassTab('REGISTER')}
+            className="px-4 py-2 rounded-lg bg-[#3d0413] text-white text-xs font-black uppercase tracking-widest hover:bg-black transition"
+          >
+            Open Class Register
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSettings = () => (
+    <div className="animate-in fade-in duration-500">
+      <div className="bg-white rounded-2xl border border-[#eddde0] p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-black text-[#1a0208] uppercase tracking-tight">Admin Settings</h2>
+            <p className="text-sm text-[#9a7880] mt-1">Portal-level lecturer tools, configuration, and account preferences.</p>
+          </div>
+          <button
+            onClick={() => setCurrentView('HOME')}
+            className="px-4 py-2 rounded-lg border border-[#eddde0] text-[#3d0413] text-xs font-black uppercase tracking-widest hover:bg-[#fdf2f4] transition"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderOnlineClassDetail = () => (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 animate-in fade-in slide-in-from-right-12 duration-1000">
       <div className="lg:col-span-2 space-y-8 lg:space-y-12">
@@ -1384,7 +1446,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
             <div className="text-[9px] uppercase tracking-[0.12em] text-white/35 px-2 py-1">Main</div>
             <button className="w-full text-left px-3 py-2 rounded-none bg-white/15 text-white text-sm font-semibold flex items-center gap-2"><BarChart3 size={14} /> Dashboard</button>
             <button onClick={() => { void openTimetableFromSidebar(); }} className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Calendar size={14} /> Timetable</button>
-            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Users size={14} /> Students <span className="ml-auto text-[9px] bg-white/20 rounded-full px-2 py-0.5">{students.length}</span></button>
+            <button onClick={() => openPhysicalClassTab('STUDENTS')} className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Users size={14} /> Students <span className="ml-auto text-[9px] bg-white/20 rounded-full px-2 py-0.5">{students.length}</span></button>
             <button
               onClick={() => {
                 if (onOpenRepository) {
@@ -1399,12 +1461,12 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
               <span className="ml-auto text-[9px] bg-white/20 rounded-full px-2 py-0.5">{resources.length}</span>
             </button>
             <div className="text-[9px] uppercase tracking-[0.12em] text-white/35 px-2 py-2 mt-2">Teaching</div>
-            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Check size={14} /> Attendance</button>
-            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><FileText size={14} /> Assessments</button>
-            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><BookOpen size={14} /> Materials <span className="ml-auto text-[9px] bg-white/20 rounded-full px-2 py-0.5">{resources.length}</span></button>
-            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Radio size={14} /> Live Classes</button>
-            <div className="text-[9px] uppercase tracking-[0.12em] text-white/35 px-2 py-2 mt-2">Admin</div>
-            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Settings size={14} /> Settings</button>
+            <button onClick={() => openPhysicalClassTab('REGISTER')} className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Check size={14} /> Attendance</button>
+            <button onClick={() => setCurrentView('ASSESSMENTS')} className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><FileText size={14} /> Assessments</button>
+            <button onClick={() => openPhysicalClassTab('MATERIALS')} className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><BookOpen size={14} /> Materials <span className="ml-auto text-[9px] bg-white/20 rounded-full px-2 py-0.5">{resources.length}</span></button>
+            <button onClick={openLiveClassesFromSidebar} className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Radio size={14} /> Live Classes</button>
+            <button onClick={() => setCurrentView('SETTINGS')} className="w-full text-left px-2 py-2 mt-2 text-white/40 text-[9px] uppercase tracking-[0.12em] hover:text-white/70">Admin</button>
+            <button onClick={() => setCurrentView('SETTINGS')} className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Settings size={14} /> Settings</button>
           </div>
           <div className="p-4 border-t border-white/10">
             <div className="flex items-center gap-3">
@@ -1604,6 +1666,8 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
         )}
         {currentView === 'ONLINE_CLASS_DETAIL' && selectedOnlineClass && renderOnlineClassDetail()}
         {currentView === 'EREPOSITORY' && renderERepository()}
+        {currentView === 'ASSESSMENTS' && renderAssessments()}
+        {currentView === 'SETTINGS' && renderSettings()}
       </div>
           </div>
         </div>
