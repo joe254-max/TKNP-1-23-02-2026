@@ -924,6 +924,8 @@ const StudentClasses: React.FC<{
 
   const renderClassNotLive = () => {
     if (!selectedClass) return null;
+    const nextSessionLabel = selectedClass.startTime || selectedClass.schedule || 'To be announced';
+    const nextTimeToken = String(nextSessionLabel).split(' ').pop() || nextSessionLabel;
     return (
       <div className="max-w-3xl mx-auto animate-in fade-in zoom-in duration-500">
         <button 
@@ -944,7 +946,7 @@ const StudentClasses: React.FC<{
                <Clock size={20} />
                <span className="text-lg">Starts in: 2 hours 15 minutes</span>
             </div>
-            <p className="mt-4 text-[11px] font-black uppercase tracking-[0.3em] opacity-60">Next Session: Today, {selectedClass.schedule.split(' ').pop()}</p>
+            <p className="mt-4 text-[11px] font-black uppercase tracking-[0.3em] opacity-60">Next Session: Today, {nextTimeToken}</p>
           </div>
 
           <div className="p-12 space-y-12">
@@ -1449,7 +1451,7 @@ const StudentClasses: React.FC<{
                     </div>
                     {activeTab === 'ONLINE' && cls.link && (
                        <div className="flex items-center gap-2 sm:gap-3 text-[#3d0413] font-black text-[10px] sm:text-xs truncate opacity-40">
-                         <span className="text-sm sm:text-lg">🔗</span> <span className="truncate">{cls.link.replace('https://', '')}</span>
+                         <span className="text-sm sm:text-lg">🔗</span> <span className="truncate">{String(cls.link).replace('https://', '')}</span>
                        </div>
                     )}
                   </div>
