@@ -1,12 +1,15 @@
 import { Department, ResourceType, AccessLevel, Resource } from './types';
 
 export const DEPARTMENTS: Department[] = [
-  { id: '1', name: 'Electrical Engineering', code: 'EE' },
-  { id: '2', name: 'Information Communication Technology', code: 'ICT' },
-  { id: '3', name: 'Business & Management', code: 'BUS' },
-  { id: '4', name: 'Building & Civil Engineering', code: 'BCE' },
-  { id: '5', name: 'Hospitality & Tourism', code: 'HOSP' },
-  { id: '6', name: 'Applied Sciences', code: 'AS' },
+  { id: '1', name: 'Agriculture', code: 'AGRI' },
+  { id: '2', name: 'Building and Civil Engineering', code: 'BCE' },
+  { id: '3', name: 'Business Studies', code: 'BUS' },
+  { id: '4', name: 'Computer and Information Technology', code: 'CIT' },
+  { id: '5', name: 'Electrical and Electronics Engineering', code: 'EEE' },
+  { id: '6', name: 'Hospitality and Institutional', code: 'HI' },
+  { id: '7', name: 'Liberal Studies', code: 'LS' },
+  { id: '8', name: 'Mathematics and Applied Sciences', code: 'MAS' },
+  { id: '9', name: 'Mechanical Engineering', code: 'ME' },
 ];
 
 export const RESOURCE_TYPES = Object.values(ResourceType);

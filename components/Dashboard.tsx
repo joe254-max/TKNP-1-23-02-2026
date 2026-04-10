@@ -14,6 +14,8 @@ import { jsPDF } from 'jspdf';
 import { saveRecording, getAllRecordings, type RecordedSession } from '../lib/recordingsDb';
 import ERepositoryUpload from './ERepositoryUpload';
 import { deleteClassSession, fetchClassSessions, upsertClassSession } from '../lib/timetableService';
+import { fetchOwnedSchoolClasses, fetchOwnedSchoolStudents, searchSchoolClasses, subscribeSchoolClasses, upsertSchoolClassIndex, upsertSchoolStudents, type SchoolClassRecord } from '../lib/schoolClassService';
+import { DEPARTMENTS } from '../constants';
 
 interface DashboardProps {
   user: User;
@@ -77,6 +79,7 @@ interface VirtualClass {
   code: string;
   title: string;
   platform: string;
+  department?: string;
   students: number;
   link: string;
   type: 'ONLINE';
@@ -118,6 +121,12 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'info'} | null>(null);
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [materialsSearch, setMaterialsSearch] = useState('');
+  const [schoolClassSearch, setSchoolClassSearch] = useState('');
+  const [schoolClassResults, setSchoolClassResults] = useState<SchoolClassRecord[]>([]);
+  const [isSchoolClassLoading, setIsSchoolClassLoading] = useState(false);
+  const [schoolClassSearchOpen, setSchoolClassSearchOpen] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const lecturerCameraPiPRef = useRef<HTMLVideoElement>(null);
@@ -179,7 +188,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
   const [virtualClasses, setVirtualClasses] = useState<VirtualClass[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.VIRTUAL);
     return saved ? JSON.parse(saved) : [
-      { id: 'v1', code: 'ICT-101', title: 'PROGRAMMING LOGIC', platform: 'MICROSOFT TEAMS', students: 42, link: 'https://teams.microsoft.com', type: 'ONLINE' as const, startTime: '10:00 AM' }
+      { id: 'v1', code: 'ICT-101', title: 'PROGRAMMING LOGIC', platform: 'MICROSOFT TEAMS', department: user.department || 'General', students: 42, link: 'https://teams.microsoft.com', type: 'ONLINE' as const, startTime: '10:00 AM' }
     ];
   });
 
@@ -203,6 +212,172 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.VIRTUAL, JSON.stringify(virtualClasses));
   }, [virtualClasses]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ENROLLED_STUDENTS, JSON.stringify(students));
+  }, [students]);
+
+  useEffect(() => {
+    let mounted = true;
+    const hydrateFromSupabase = async () => {
+      try {
+        const [classRows, studentRows] = await Promise.all([
+          fetchOwnedSchoolClasses(),
+          fetchOwnedSchoolStudents(),
+        ]);
+
+        if (!mounted) return;
+
+        if (classRows.length > 0) {
+          const nextPhysical = classRows
+            .filter((r) => r.class_mode === 'PHYSICAL')
+            .map((r) => ({
+              id: r.class_key,
+              code: r.code,
+              title: r.title,
+              room: r.room_or_platform,
+              studentCount: r.student_count ?? 0,
+              type: 'PHYSICAL' as const,
+              department: r.department || user.department || 'General',
+              credits: 3,
+              staff: r.teacher_name || user.name,
+              schedule: [],
+            }));
+          const nextVirtual = classRows
+            .filter((r) => r.class_mode === 'ONLINE')
+            .map((r) => ({
+              id: r.class_key,
+              code: r.code,
+              title: r.title,
+              platform: r.room_or_platform,
+              department: r.department || user.department || 'General',
+              students: r.student_count ?? 0,
+              link: '#',
+              type: 'ONLINE' as const,
+              startTime: '12:00 PM',
+            }));
+
+          if (nextPhysical.length > 0) setPhysicalClasses(nextPhysical);
+          if (nextVirtual.length > 0) setVirtualClasses(nextVirtual);
+        }
+
+        if (studentRows.length > 0) {
+          setStudents((prev) => {
+            const byAdm = new Map(prev.map((s) => [s.admNo, s]));
+            studentRows.forEach((r) => {
+              byAdm.set(r.adm_no, {
+                id: r.student_id || `st-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                name: r.student_name,
+                admNo: r.adm_no,
+                phone: r.phone || '',
+                attendance: Number(r.attendance || 0),
+                gradeAverage: Number(r.grade_average || 0),
+                status: (r.status as Student['status']) || 'ACTIVE',
+                classId: r.class_key,
+              });
+            });
+            return Array.from(byAdm.values());
+          });
+        }
+      } catch {
+        // local state remains fallback if Supabase hydration fails
+      }
+    };
+
+    void hydrateFromSupabase();
+    return () => {
+      mounted = false;
+    };
+  }, [user.department, user.name]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(async () => {
+      try {
+        setCloudSyncStatus('saving');
+        await upsertSchoolClassIndex([
+          ...physicalClasses.map((c) => ({
+            class_key: c.id,
+            code: c.code,
+            title: c.title,
+            department: c.department || user.department || 'General',
+            class_mode: 'PHYSICAL' as const,
+            room_or_platform: c.room,
+            teacher_name: c.staff || user.name,
+            student_count: c.studentCount ?? 0,
+          })),
+          ...virtualClasses.map((c) => ({
+            class_key: c.id,
+            code: c.code,
+            title: c.title,
+            department: c.department || user.department || 'General',
+            class_mode: 'ONLINE' as const,
+            room_or_platform: c.platform,
+            teacher_name: user.name,
+            student_count: c.students ?? 0,
+          })),
+        ]);
+        markCloudSaved();
+      } catch {
+        setCloudSyncStatus('error');
+        // Keep UI responsive even when cloud sync is unavailable.
+      }
+    }, 700);
+    return () => window.clearTimeout(timeout);
+  }, [physicalClasses, virtualClasses, user.department, user.name]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(async () => {
+      try {
+        setCloudSyncStatus('saving');
+        await upsertSchoolStudents(
+          students.map((s) => ({
+            class_key: s.classId || 'UNASSIGNED',
+            student_id: s.id,
+            adm_no: s.admNo,
+            student_name: s.name,
+            phone: s.phone || '',
+            status: s.status || 'ACTIVE',
+            attendance: Number(s.attendance || 0),
+            grade_average: Number(s.gradeAverage || 0),
+          })),
+        );
+        markCloudSaved();
+      } catch {
+        setCloudSyncStatus('error');
+        // keep non-blocking
+      }
+    }, 700);
+    return () => window.clearTimeout(timeout);
+  }, [students]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(async () => {
+      setIsSchoolClassLoading(true);
+      try {
+        const rows = await searchSchoolClasses(schoolClassSearch);
+        setSchoolClassResults(rows);
+      } catch {
+        setSchoolClassResults([]);
+      } finally {
+        setIsSchoolClassLoading(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [schoolClassSearch]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeSchoolClasses(() => {
+      void (async () => {
+        try {
+          const rows = await searchSchoolClasses(schoolClassSearch);
+          setSchoolClassResults(rows);
+        } catch {
+          // keep current list on realtime refresh errors
+        }
+      })();
+    });
+    return unsubscribe;
+  }, [schoolClassSearch]);
 
   // Sync live participants list for current online class
   useEffect(() => {
@@ -271,6 +446,14 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
   const showToast = (msg: string, type: 'success' | 'info' = 'success') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 4000);
+  };
+
+  const markCloudSaved = () => {
+    setLastSavedAt(new Date());
+    setCloudSyncStatus('saved');
+    window.setTimeout(() => {
+      setCloudSyncStatus((prev) => (prev === 'saved' ? 'idle' : prev));
+    }, 2200);
   };
 
   const setStudentStatus = (id: string, status: 'PRESENT' | 'ABSENT') => {
@@ -1481,9 +1664,76 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
           </div>
         </aside>
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="h-[52px] bg-white border-b border-[#e8dfe1] px-6 flex items-center justify-between">
+          <div className="h-[52px] bg-white border-b border-[#e8dfe1] px-6 flex items-center justify-between gap-4">
             <div className="text-[14px] font-semibold text-[#1a0208]">Lecturer Dashboard</div>
+            <div className="relative flex-1 max-w-xl">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={schoolClassSearch}
+                onChange={(e) => setSchoolClassSearch(e.target.value)}
+                onFocus={() => setSchoolClassSearchOpen(true)}
+                onBlur={() => window.setTimeout(() => setSchoolClassSearchOpen(false), 120)}
+                placeholder="Search all classes in school..."
+                className="w-full h-9 pl-9 pr-3 rounded-lg border border-[#e8dfe1] bg-[#faf7f8] text-[12px] font-semibold text-[#3d0413] outline-none focus:ring-2 focus:ring-[#3d0413]/20"
+              />
+              {schoolClassSearchOpen && (
+                <div className="absolute top-11 left-0 right-0 z-30 bg-white border border-[#eddde0] rounded-xl shadow-xl max-h-72 overflow-y-auto">
+                  {isSchoolClassLoading && <div className="px-4 py-3 text-xs text-slate-500">Searching classes...</div>}
+                  {!isSchoolClassLoading && schoolClassResults.length === 0 && (
+                    <div className="px-4 py-3 text-xs text-slate-500">No classes found.</div>
+                  )}
+                  {!isSchoolClassLoading &&
+                    schoolClassResults.map((item) => (
+                      <button
+                        key={item.class_key}
+                        onMouseDown={() => {
+                          const picked = physicalClasses.find((c) => c.id === item.class_key);
+                          if (picked) {
+                            setSelectedPhysicalClass(picked);
+                            setCurrentView('PHYSICAL_CLASS_DETAIL');
+                            setActiveClassTab('REGISTER');
+                            return;
+                          }
+                          const pickedOnline = virtualClasses.find((c) => c.id === item.class_key);
+                          if (pickedOnline) {
+                            setSelectedOnlineClass(pickedOnline);
+                            setCurrentView('ONLINE_CLASS_DETAIL');
+                          }
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-[#fdf2f4] border-b border-[#f4eaec] last:border-b-0"
+                      >
+                        <div className="text-[12px] font-black text-[#1a0208]">{item.code} - {item.title}</div>
+                        <div className="text-[10px] text-[#9a7880] mt-1">{item.department} · {item.class_mode} · {item.room_or_platform} · {item.student_count} students</div>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-3">
+              <div
+                className={`text-[10px] px-2.5 py-1 rounded-md border font-black uppercase tracking-widest ${
+                  cloudSyncStatus === 'saving'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : cloudSyncStatus === 'saved'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : cloudSyncStatus === 'error'
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : 'bg-[#fdf2f4] text-[#9a7880] border-[#f0dde1]'
+                }`}
+              >
+                {cloudSyncStatus === 'saving'
+                  ? 'Syncing...'
+                  : cloudSyncStatus === 'saved'
+                  ? 'Saved to Cloud'
+                  : cloudSyncStatus === 'error'
+                  ? 'Sync Error'
+                  : 'Cloud Ready'}
+              </div>
+              {lastSavedAt && (
+                <div className="text-[10px] text-[#9a7880] bg-[#f8f1f3] px-2.5 py-1 rounded-md border border-[#f0dde1] font-bold">
+                  Last saved: {lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              )}
               <div className="text-[11px] text-[#9a7880] bg-[#fdf2f4] px-3 py-1 rounded-md border border-[#f0dde1]">
                 {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </div>
@@ -1675,14 +1925,35 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
 
       {/* CREATE / EDIT CLASS MODAL */}
       {isCreateClassModalOpen && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-8">
-           <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl" onClick={() => { setIsCreateClassModalOpen(false); setEditingNode(null); }}></div>
-           <div className="relative w-full max-w-2xl bg-white rounded-[4rem] shadow-2xl overflow-hidden animate-in zoom-in">
-              <div className="bg-[#3d0413] p-14 flex justify-between items-center text-white">
-                <h3 className="text-5xl font-black uppercase tracking-tighter leading-none">{editingNode ? 'Edit Node' : 'Provision Node'}</h3>
-                <button onClick={() => { setIsCreateClassModalOpen(false); setEditingNode(null); }} className="p-5 bg-white/10 rounded-[1.5rem] hover:bg-white/20 transition-all"><X size={36}/></button>
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-3 sm:p-6 lg:p-8">
+           <div
+             className="absolute inset-0 bg-[rgba(0,0,0,0.03)] border border-black/20"
+             style={{ backdropFilter: 'blur(28px) brightness(0.72)', WebkitBackdropFilter: 'blur(28px) brightness(0.72)' }}
+             onClick={() => { setIsCreateClassModalOpen(false); setEditingNode(null); }}
+           ></div>
+           <div className="relative w-full max-w-3xl max-h-[92vh] bg-white rounded-3xl sm:rounded-[2.5rem] lg:rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in flex flex-col border border-[#3d0413]/20">
+              <div className="bg-black px-5 py-4 sm:px-8 sm:py-6 lg:px-12 lg:py-8 flex justify-between items-center">
+                <h3
+                  className="text-xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight leading-none bg-clip-text text-transparent"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 1)',
+                    backgroundImage: 'linear-gradient(90deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 1) 100%)',
+                    WebkitBackgroundClip: 'text',
+                    backgroundClip: 'text',
+                    color: 'transparent',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderColor: 'rgba(0, 0, 0, 1)',
+                    boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)',
+                  }}
+                >
+                  {editingNode ? 'Edit Class' : 'Add New Class'}
+                </h3>
+                <button onClick={() => { setIsCreateClassModalOpen(false); setEditingNode(null); }} className="p-2.5 sm:p-3.5 bg-white/10 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all border border-white/15 text-white">
+                  <X size={22} style={{ color: 'rgba(236, 228, 228, 0.95)' }} />
+                </button>
               </div>
-              <div className="p-14">
+              <div className="px-4 py-5 sm:px-8 sm:py-7 lg:px-12 lg:py-9 overflow-y-auto">
                 <form 
                   ref={classFormRef}
                   onSubmit={(e) => {
@@ -1692,6 +1963,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
                    const code = (formData.get('code') as string).toUpperCase();
                    const title = (formData.get('title') as string).toUpperCase();
                    const target = (formData.get('target') as string).toUpperCase();
+                  const department = ((formData.get('department') as string) || user.department || 'General').toUpperCase();
                    
                    const submitter = (e.nativeEvent as any).submitter?.name;
                    const destinationTab = submitter === 'STUDENTS' ? 'STUDENTS' : submitter === 'TIMETABLE' ? 'TIME TABLE' : 'REGISTER';
@@ -1702,7 +1974,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
                       if (type === 'PHYSICAL') {
                         setPhysicalClasses(prev => prev.map(c => {
                           if (c.id === editingNode.id) {
-                            const updated = { ...c, code, title, room: target, type: 'PHYSICAL' as const };
+                            const updated = { ...c, code, title, room: target, department, type: 'PHYSICAL' as const };
                             classToSelect = updated;
                             syncToGlobalRegistry(updated);
                             return updated;
@@ -1712,7 +1984,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
                       } else {
                         setVirtualClasses(prev => prev.map(c => {
                           if (c.id === editingNode.id) {
-                            const updated = { ...c, code, title, platform: target, type: 'ONLINE' as const };
+                            const updated = { ...c, code, title, platform: target, department, type: 'ONLINE' as const };
                             classToSelect = updated;
                             syncToGlobalRegistry(updated);
                             return updated;
@@ -1724,12 +1996,12 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
                    } else {
                       let newNode: any;
                       if (type === 'PHYSICAL') {
-                        newNode = { id: `p-${Date.now()}`, code, title, room: target, studentCount: 0, type: 'PHYSICAL' as const, department: user.department || 'General', credits: 3, staff: user.name, schedule: [] };
+                        newNode = { id: `p-${Date.now()}`, code, title, room: target, studentCount: 0, type: 'PHYSICAL' as const, department, credits: 3, staff: user.name, schedule: [] };
                         setPhysicalClasses(prev => [...prev, newNode]);
                         classToSelect = newNode;
                         syncToGlobalRegistry(newNode);
                       } else {
-                        newNode = { id: `v-${Date.now()}`, code, title, platform: target, students: 0, link: '#', type: 'ONLINE' as const, startTime: '12:00 PM' };
+                        newNode = { id: `v-${Date.now()}`, code, title, platform: target, department, students: 0, link: '#', type: 'ONLINE' as const, startTime: '12:00 PM' };
                         setVirtualClasses(prev => [...prev, newNode]);
                         classToSelect = newNode;
                         syncToGlobalRegistry(newNode);
@@ -1749,24 +2021,64 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
                    }
                    setIsCreateClassModalOpen(false);
                    setEditingNode(null);
-                 }} className="space-y-10">
-                    <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] px-3">Node Protocol</label>
-                      <div className="flex p-1.5 bg-slate-100 rounded-[1.8rem] border border-slate-200 shadow-inner">
-                        <button type="button" onClick={() => setProvisionType('PHYSICAL')} className={`flex-1 py-4 rounded-[1.2rem] font-black uppercase text-[10px] tracking-widest transition-all ${provisionType === 'PHYSICAL' ? 'bg-white text-[#3d0413] shadow-md' : 'text-slate-400'}`}>Physical Classroom</button>
-                        <button type="button" onClick={() => setProvisionType('ONLINE')} className={`flex-1 py-4 rounded-[1.2rem] font-black uppercase text-[10px] tracking-widest transition-all ${provisionType === 'ONLINE' ? 'bg-[#3d0413] text-white shadow-lg' : 'text-slate-400'}`}>Online Class</button>
+                 }} className="space-y-5 sm:space-y-7">
+                    <div className="space-y-2.5 sm:space-y-3">
+                      <label className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] sm:tracking-[0.4em] px-2 sm:px-3">Class Type</label>
+                      <div className="flex p-1.5 bg-slate-100 rounded-2xl sm:rounded-[1.8rem] border border-slate-200 shadow-inner">
+                        <button
+                          type="button"
+                          onClick={() => setProvisionType('PHYSICAL')}
+                          className={`flex-1 py-3 sm:py-4 rounded-xl sm:rounded-[1.2rem] font-black uppercase text-[9px] sm:text-[10px] tracking-[0.12em] sm:tracking-widest transition-all ${provisionType === 'PHYSICAL' ? 'shadow-md' : 'bg-white text-slate-500 shadow-sm'}`}
+                          style={{
+                            backgroundColor: provisionType === 'PHYSICAL' ? 'rgba(61, 4, 19, 1)' : 'rgb(255, 255, 255)',
+                            color: provisionType === 'PHYSICAL' ? 'rgb(255, 255, 255)' : 'rgb(100, 116, 139)',
+                            boxShadow: '0px 0px 10px 12px rgba(0, 0, 0, 0), 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1)',
+                            filter: 'blur(0px)',
+                          }}
+                        >
+                          Physical Classroom
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProvisionType('ONLINE')}
+                          className={`flex-1 py-3 sm:py-4 rounded-xl sm:rounded-[1.2rem] font-black uppercase text-[9px] sm:text-[10px] tracking-[0.12em] sm:tracking-widest transition-all ${provisionType === 'ONLINE' ? 'shadow-md' : 'bg-white text-slate-500 shadow-sm'}`}
+                          style={{
+                            backgroundColor: provisionType === 'ONLINE' ? 'rgba(61, 4, 19, 1)' : 'rgb(255, 255, 255)',
+                            color: provisionType === 'ONLINE' ? 'rgb(255, 255, 255)' : 'rgb(100, 116, 139)',
+                            boxShadow: '0px 0px 10px 12px rgba(0, 0, 0, 0), 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1)',
+                            filter: 'blur(0px)',
+                          }}
+                        >
+                          Online Class
+                        </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-10">
-                        <div className="space-y-3"><label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] px-3">Unit Code</label><input name="code" defaultValue={editingNode?.code} required type="text" placeholder="EE-402" className="w-full px-8 py-6 bg-slate-50 border border-slate-200 rounded-[1.5rem] font-black outline-none focus:ring-4 focus:ring-[#3d0413]/5" /></div>
-                        <div className="space-y-3"><label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] px-3">{provisionType === 'PHYSICAL' ? 'Venue' : 'Platform'}</label><input name="target" defaultValue={(editingNode as any)?.room || (editingNode as any)?.platform} required type="text" placeholder={provisionType === 'PHYSICAL' ? "Power Lab 2" : "MS Teams"} className="w-full px-8 py-6 bg-slate-50 border border-slate-200 rounded-[1.5rem] font-black outline-none focus:ring-4 focus:ring-[#3d0413]/5" /></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                        <div className="space-y-2.5 sm:space-y-3"><label className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] sm:tracking-[0.4em] px-2 sm:px-3">Class Code</label><input name="code" defaultValue={editingNode?.code} required type="text" placeholder="EE-402" style={{ boxShadow: '0px 0px 0px 4px rgba(61, 4, 19, 0.1), inset 0px 0px 0px 0px rgba(0, 0, 0, 0)', filter: 'blur(0px)' }} className="w-full px-4 sm:px-6 py-4 sm:py-5 bg-slate-50 border border-[#3d0413] rounded-xl sm:rounded-[1.5rem] font-black outline-none focus:ring-4 focus:ring-[#3d0413]/10 text-sm sm:text-base" /></div>
+                        <div className="space-y-2.5 sm:space-y-3"><label className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] sm:tracking-[0.4em] px-2 sm:px-3">{provisionType === 'PHYSICAL' ? 'Venue' : 'Platform'}</label><input name="target" defaultValue={(editingNode as any)?.room || (editingNode as any)?.platform} required type="text" placeholder={provisionType === 'PHYSICAL' ? "Power Lab 2" : "MS Teams"} className="w-full px-4 sm:px-6 py-4 sm:py-5 bg-slate-50 border border-[#3d0413] rounded-xl sm:rounded-[1.5rem] font-black outline-none focus:ring-4 focus:ring-[#3d0413]/10 text-sm sm:text-base" /></div>
                     </div>
-                    <div className="space-y-3"><label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] px-3">Unit Title</label><input name="title" defaultValue={editingNode?.title} required type="text" placeholder="Advanced Power Systems" className="w-full px-8 py-6 bg-slate-50 border border-slate-200 rounded-[1.5rem] font-black outline-none focus:ring-4 focus:ring-[#3d0413]/5" /></div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <button type="submit" name="STUDENTS" className="py-6 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-sm hover:bg-emerald-100 transition-all flex items-center justify-center gap-3"><UserPlus size={16} /> Add Student</button>
-                      <button type="submit" name="TIMETABLE" className="py-6 bg-amber-50 text-amber-700 border border-amber-100 rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-sm hover:bg-amber-100 transition-all flex items-center justify-center gap-3"><Clock size={16} /> Add Time Table</button>
+                    <div className="space-y-2.5 sm:space-y-3">
+                      <label className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] sm:tracking-[0.4em] px-2 sm:px-3">Department</label>
+                      <select
+                        name="department"
+                        defaultValue={(editingNode as any)?.department || user.department || DEPARTMENTS[0]?.name || ''}
+                        required
+                        style={{ boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15), inset 0px 4px 0px 0px rgba(0, 0, 0, 0.15)', filter: 'blur(0px)' }}
+                        className="w-full px-4 sm:px-6 py-4 sm:py-5 bg-slate-50 border border-[#3d0413] rounded-xl sm:rounded-[1.5rem] font-black outline-none focus:ring-4 focus:ring-[#3d0413]/10 text-sm sm:text-base"
+                      >
+                        {DEPARTMENTS.map((dept) => (
+                          <option key={dept.id} value={dept.name}>
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <button type="submit" className="w-full py-7 bg-[#3d0413] text-white rounded-[2.5rem] font-black uppercase text-sm shadow-2xl active:scale-95 border-b-8 border-black transition-all hover:bg-black">{editingNode ? 'Authorize Changes' : 'Authorize Provisioning'}</button>
+                    <div className="space-y-2.5 sm:space-y-3"><label className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] sm:tracking-[0.4em] px-2 sm:px-3">Unit Title</label><input name="title" defaultValue={editingNode?.title} required type="text" placeholder="Advanced Power Systems" style={{ boxShadow: '0px 0px 0px 4px rgba(61, 4, 19, 0.1), 0px 0px 0px 0px rgba(0, 0, 0, 0)', filter: 'blur(0px)' }} className="w-full px-4 sm:px-6 py-4 sm:py-5 bg-slate-50 border border-[#3d0413] rounded-xl sm:rounded-[1.5rem] font-black outline-none focus:ring-4 focus:ring-[#3d0413]/10 text-sm sm:text-base" /></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <button type="submit" name="STUDENTS" className="py-4 sm:py-5 bg-black text-white border border-black rounded-xl sm:rounded-[2rem] font-black uppercase text-[9px] sm:text-[10px] tracking-[0.12em] sm:tracking-widest shadow-sm hover:bg-[#111] transition-all flex items-center justify-center gap-2 sm:gap-3"><UserPlus size={16} /> Add Student</button>
+                      <button type="submit" name="TIMETABLE" className="py-4 sm:py-5 bg-amber-200 text-amber-700 border border-amber-100 rounded-xl sm:rounded-[2rem] font-black uppercase text-[9px] sm:text-[10px] tracking-[0.12em] sm:tracking-widest shadow-sm hover:bg-amber-300 transition-all flex items-center justify-center gap-2 sm:gap-3"><Clock size={16} /> Add Time Table</button>
+                    </div>
+                    <button type="submit" style={{ borderBottomColor: 'rgba(61, 4, 19, 1)', borderImage: 'none' }} className="w-full py-4 sm:py-5 bg-[#3d0413] text-white rounded-xl sm:rounded-[2rem] font-black uppercase text-[10px] sm:text-sm tracking-[0.12em] sm:tracking-widest shadow-2xl active:scale-95 border-b-4 sm:border-b-8 border-black transition-all hover:bg-black">{editingNode ? 'Confirm Changes' : 'Confirm'}</button>
                  </form>
               </div>
            </div>
@@ -1839,6 +2151,85 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
                  </form>
               </div>
            </div>
+        </div>
+      )}
+
+      {/* ADD STUDENT MODAL */}
+      {isAddStudentModalOpen && (
+        <div className="fixed inset-0 z-[640] flex items-center justify-center p-4 sm:p-8">
+          <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={() => setIsAddStudentModalOpen(false)}></div>
+          <div className="relative w-full max-w-xl bg-white rounded-3xl border border-[#eddde0] shadow-2xl overflow-hidden">
+            <div className="bg-[#3d0413] px-6 py-5 sm:px-8 sm:py-6 flex items-center justify-between text-white">
+              <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight">Add Student</h3>
+              <button onClick={() => setIsAddStudentModalOpen(false)} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 sm:p-7">
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = new FormData(e.currentTarget as HTMLFormElement);
+                  const name = String(form.get('name') || '').trim().toUpperCase();
+                  const admNo = String(form.get('admNo') || '').trim().toUpperCase();
+                  const phone = String(form.get('phone') || '').trim();
+                  const status = String(form.get('status') || 'ACTIVE') as Student['status'];
+                  const classId =
+                    String(form.get('classId') || '').trim() ||
+                    selectedPhysicalClass?.id ||
+                    physicalClasses[0]?.id ||
+                    '';
+
+                  if (!name || !admNo || !classId) {
+                    showToast('Name, admission number, and class are required', 'info');
+                    return;
+                  }
+
+                  const newStudent: Student = {
+                    id: `st-${Date.now()}`,
+                    name,
+                    admNo,
+                    phone,
+                    attendance: 0,
+                    gradeAverage: 0,
+                    status,
+                    classId,
+                  };
+
+                  setStudents((prev) => {
+                    const hasSameAdm = prev.some((s) => s.admNo === newStudent.admNo);
+                    if (hasSameAdm) {
+                      return prev.map((s) => (s.admNo === newStudent.admNo ? { ...s, ...newStudent } : s));
+                    }
+                    return [...prev, newStudent];
+                  });
+                  setIsAddStudentModalOpen(false);
+                  showToast('Student enrolled', 'success');
+                }}
+              >
+                <input name="name" placeholder="STUDENT FULL NAME" required className="w-full px-4 py-3 bg-slate-50 border border-[#3d0413]/30 rounded-xl font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10" />
+                <input name="admNo" placeholder="ADMISSION NO (e.g. EE/001/2026)" required className="w-full px-4 py-3 bg-slate-50 border border-[#3d0413]/30 rounded-xl font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10" />
+                <input name="phone" placeholder="+254 7XX XXX XXX" className="w-full px-4 py-3 bg-slate-50 border border-[#3d0413]/30 rounded-xl font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10" />
+                <select name="classId" defaultValue={selectedPhysicalClass?.id || physicalClasses[0]?.id || ''} className="w-full px-4 py-3 bg-slate-50 border border-[#3d0413]/30 rounded-xl font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10">
+                  {(physicalClasses.length > 0 ? physicalClasses : []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} - {c.title}
+                    </option>
+                  ))}
+                </select>
+                <select name="status" defaultValue="ACTIVE" className="w-full px-4 py-3 bg-slate-50 border border-[#3d0413]/30 rounded-xl font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10">
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="PROBATION">PROBATION</option>
+                  <option value="DEFERRED">DEFERRED</option>
+                </select>
+
+                <button type="submit" className="w-full py-3 bg-[#3d0413] text-white rounded-xl font-black uppercase tracking-widest hover:bg-black transition">
+                  Save Student
+                </button>
+              </form>
+            </div>
+          </div>
         </div>
       )}
     </div>

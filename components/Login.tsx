@@ -41,6 +41,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Quote typing effect and background synchronization logic
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
@@ -96,14 +97,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setErrorMessage(null);
-    
-    if (mode === 'forgot-password') {
-      setResetEmailSent(true);
-      return;
-    }
+    try {
+      if (mode === 'forgot-password') {
+        setResetEmailSent(true);
+        return;
+      }
 
-    if (mode === 'register') {
+      if (mode === 'register') {
       // Basic validation for registration
       if (!email || !password) {
         setErrorMessage('Please provide both email and password to register.');
@@ -117,33 +120,33 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         localStorage.removeItem('poly_remembered_email');
       }
 
-      try {
-        const createdUser = await registerUserInDb({
-          name: name || 'Institutional User',
-          email,
-          role,
-          department,
-          admissionNo: role === UserRole.STUDENT ? idNumber : undefined,
-          // NOTE: demo only, password is stored in plain text locally
-          password,
-        });
+        try {
+          const createdUser = await registerUserInDb({
+            name: name || 'Institutional User',
+            email,
+            role,
+            department,
+            admissionNo: role === UserRole.STUDENT ? idNumber : undefined,
+            // NOTE: demo only, password is stored in plain text locally
+            password,
+          });
 
-        onLogin(createdUser, rememberMe);
-      } catch (err) {
-        console.error('Registration error', err);
-        const msg = (err as Error).message || 'Registration failed';
-        // Specific notification for duplicate email
-        if (msg.toLowerCase().includes('already exists')) {
-          setErrorMessage('An account with this email already exists. Please log in instead or use a different email.');
-        } else {
-          setErrorMessage(msg);
+          onLogin(createdUser, rememberMe);
+        } catch (err) {
+          console.error('Registration error', err);
+          const msg = (err as Error).message || 'Registration failed';
+          // Specific notification for duplicate email
+          if (msg.toLowerCase().includes('already exists')) {
+            setErrorMessage('An account with this email already exists. Please log in instead or use a different email.');
+          } else {
+            setErrorMessage(msg);
+          }
         }
+        return;
       }
-      return;
-    }
 
-    // Handle 'login' and '2fa' modes
-    if (mode === 'login' || mode === '2fa') {
+      // Handle 'login' and '2fa' modes
+      if (mode === 'login' || mode === '2fa') {
       // Require credentials for login
       if (!email || !password) {
         setErrorMessage('Please enter both email and password to log in.');
@@ -163,9 +166,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         localStorage.removeItem('poly_remembered_email');
       }
 
-      // Database authentication
-      const dbUser = await authenticateUserFromDb(email, password);
-      if (dbUser) {
+        // Database authentication
+        const dbUser = await authenticateUserFromDb(email, password);
+        if (dbUser) {
         // Enforce portal separation:
         // - Student portal only allows STUDENT accounts
         // - Staff portal allows any NON-STUDENT account (LECTURER / LIBRARIAN / ADMIN)
@@ -183,11 +186,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           return;
         }
 
-        onLogin(dbUser as User, rememberMe);
-        return;
-      }
+          onLogin(dbUser as User, rememberMe);
+          return;
+        }
 
-      setErrorMessage('Invalid email or password. Please try again or register a new account.');
+        setErrorMessage('Invalid email or password. Please try again or register a new account.');
+      }
+    } catch (err) {
+      console.error('Authentication flow error', err);
+      const msg = (err as Error).message || 'Authentication failed';
+      setErrorMessage(msg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -480,9 +490,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   className="w-full py-5 bg-[#3d0413] hover:bg-black text-white rounded-2xl font-black uppercase tracking-[0.3em] text-xs shadow-2xl shadow-rose-950/20 transition active:scale-95 border-b-4 border-black mt-4"
                 >
-                  {mode === 'login' ? 'Authorize Access' : mode === 'register' ? 'Initialize Profile' : 'Dispatch Recovery'}
+                  {isSubmitting
+                    ? 'Processing...'
+                    : mode === 'login'
+                      ? 'Authorize Access'
+                      : mode === 'register'
+                        ? 'Initialize Profile'
+                        : 'Dispatch Recovery'}
                 </button>
               </form>
 

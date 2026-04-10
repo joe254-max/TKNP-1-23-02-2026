@@ -20,7 +20,7 @@ export enum AccessLevel {
   COURSE_RESTRICTED = 'COURSE_RESTRICTED'
 }
 
-export type DepartmentCode = 'EE' | 'ICT' | 'BUS' | 'BCE' | 'HOSP' | 'AS';
+export type DepartmentCode = 'AGRI' | 'BCE' | 'BUS' | 'CIT' | 'EEE' | 'HI' | 'LS' | 'MAS' | 'ME';
 
 export interface User {
   id: string;

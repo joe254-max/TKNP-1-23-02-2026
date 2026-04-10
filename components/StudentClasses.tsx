@@ -10,9 +10,11 @@ import {
 } from 'lucide-react';
 import { getAllRecordings, type RecordedSession } from '../lib/recordingsDb';
 import { getStoredProfile } from '../lib/profile';
+import { fetchAllSchoolClasses } from '../lib/schoolClassService';
 
 interface ClassItem {
   id: string;
+  code?: string;
   title: string;
   teacher: string;
   room: string;
@@ -37,6 +39,8 @@ export interface StudentProfile {
   schoolRegistryId: string;
   phone: string;
   gender: string;
+  department?: string;
+  classCode?: string;
 }
 
 function loadMyClasses(): ClassItem[] {
@@ -152,6 +156,7 @@ const StudentClasses: React.FC<{
   }, [myClasses]);
 
   const [registryClasses, setRegistryClasses] = useState<ClassItem[]>([]);
+  const [dbClasses, setDbClasses] = useState<ClassItem[]>([]);
 
   // Live session info written by staff dashboard
   const [liveSession, setLiveSession] = useState<{ classId: string; title: string; teacher: string; isLive: boolean } | null>(null);
@@ -194,6 +199,37 @@ const StudentClasses: React.FC<{
       if (mounted) setRecordedSessions(list);
     });
     return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadDbClasses = async () => {
+      try {
+        const rows = await fetchAllSchoolClasses();
+        if (!mounted) return;
+        const mapped: ClassItem[] = rows.map((r) => ({
+          id: r.class_key,
+          code: r.code,
+          title: `${r.code} - ${r.title}`,
+          teacher: r.teacher_name || 'Lecturer',
+          room: r.room_or_platform || (r.class_mode === 'ONLINE' ? 'Online' : 'Classroom'),
+          schedule: r.class_mode === 'ONLINE' ? 'Scheduled by Lecturer' : 'Scheduled by Lecturer',
+          type: r.class_mode,
+          studentCount: r.student_count ?? 0,
+          department: (r.department || '').toUpperCase(),
+          platform: r.class_mode === 'ONLINE' ? 'Microsoft Teams' : undefined,
+          link: r.class_mode === 'ONLINE' ? '#' : undefined,
+          isLive: false,
+        }));
+        setDbClasses(mapped);
+      } catch {
+        setDbClasses([]);
+      }
+    };
+    void loadDbClasses();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -260,12 +296,16 @@ const StudentClasses: React.FC<{
           schoolRegistryId: stored.schoolRegistryId || '',
           phone: stored.phone || '',
           gender: stored.gender || '',
+          department: stored.department || '',
+          classCode: stored.class || '',
         };
       }
     }
     const p = loadStudentProfile();
     const name = user?.name || '';
-    return p && (p.fullName || p.schoolRegistryId) ? p : { fullName: name || 'Student', schoolRegistryId: '', phone: '', gender: '' };
+    return p && (p.fullName || p.schoolRegistryId)
+      ? p
+      : { fullName: name || 'Student', schoolRegistryId: '', phone: '', gender: '', department: '', classCode: '' };
   };
 
   const getCurrentStudentIdentity = () => {
@@ -601,7 +641,7 @@ const StudentClasses: React.FC<{
 
   const addClassFromRegistry = (cls: ClassItem) => {
     const profile = getStudentProfile();
-    const needsProfile = !profile.schoolRegistryId || !profile.phone;
+    const needsProfile = !profile.schoolRegistryId || !profile.phone || !profile.department || !profile.classCode;
     if (needsProfile) {
       setClassPendingEnrollment(cls);
       if (onNavigateToProfile) {
@@ -661,26 +701,41 @@ const StudentClasses: React.FC<{
   };
 
   const filteredGlobalClasses = useMemo(() => {
-    const combinedRegistry = [...GLOBAL_AVAILABLE_CLASSES, ...registryClasses];
+    const studentProfileData = getStudentProfile();
+    const profileDept = (studentProfileData.department || '').trim().toUpperCase();
+    const profileClassCode = (studentProfileData.classCode || '').trim().toUpperCase();
+    if (!profileDept || !profileClassCode) return [];
+
+    const combinedRegistry = [...GLOBAL_AVAILABLE_CLASSES, ...registryClasses, ...dbClasses];
     const uniqueRegistry = Array.from(new Map(combinedRegistry.map(item => [item.id + item.title, item])).values());
 
     return uniqueRegistry.filter(gc => {
       const alreadyJoined = myClasses.some(mc => mc.id === gc.id || (mc.title === gc.title && mc.teacher === gc.teacher));
+      const normalizedDept = (gc.department || '').trim().toUpperCase();
+      const classCode = (gc.code || gc.title.split('-')[0] || '').trim().toUpperCase();
       const matchesSearch = gc.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            gc.teacher.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            gc.department.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesTab = (activeTab === 'PHYSICAL' ? gc.type === 'PHYSICAL' : gc.type === 'ONLINE');
-      return !alreadyJoined && matchesSearch && matchesTab;
+      const matchesProfile = normalizedDept === profileDept && classCode === profileClassCode;
+      return !alreadyJoined && matchesSearch && matchesTab && matchesProfile;
     });
-  }, [myClasses, searchQuery, activeTab, registryClasses]);
+  }, [myClasses, searchQuery, activeTab, registryClasses, dbClasses]);
 
   const availableOnlineClasses = useMemo(() => {
-    const combinedRegistry = [...GLOBAL_AVAILABLE_CLASSES, ...registryClasses];
+    const studentProfileData = getStudentProfile();
+    const profileDept = (studentProfileData.department || '').trim().toUpperCase();
+    const profileClassCode = (studentProfileData.classCode || '').trim().toUpperCase();
+    if (!profileDept || !profileClassCode) return [];
+
+    const combinedRegistry = [...GLOBAL_AVAILABLE_CLASSES, ...registryClasses, ...dbClasses];
     const uniqueRegistry = Array.from(new Map(combinedRegistry.map(item => [item.id + item.title, item])).values());
     return uniqueRegistry
       .filter(c => c.type === 'ONLINE')
+      .filter(c => (c.department || '').trim().toUpperCase() === profileDept)
+      .filter(c => ((c.code || c.title.split('-')[0] || '').trim().toUpperCase()) === profileClassCode)
       .filter(c => !myClasses.some(mc => mc.id === c.id || (mc.title === c.title && mc.teacher === c.teacher)));
-  }, [myClasses, registryClasses]);
+  }, [myClasses, registryClasses, dbClasses]);
 
   const renderJoinList = () => (
     <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
@@ -696,7 +751,7 @@ const StudentClasses: React.FC<{
           <h2 className="text-5xl font-black text-[#1a202c] uppercase tracking-tighter leading-none">JOIN NEW CLASS</h2>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-3 flex items-center gap-3">
              <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
-             Registry Node: Available Institutional Modules
+             Registry Node: Filtered by your profile Department + Class Code
           </p>
         </div>
 
@@ -741,8 +796,8 @@ const StudentClasses: React.FC<{
         ) : (
           <div className="text-center py-20 bg-white rounded-[4rem] border-2 border-dashed border-slate-200">
              <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-200"><Filter size={48} /></div>
-             <h3 className="text-xl font-black text-slate-900 uppercase">No Matches in Registry</h3>
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2">Refine your search parameters or check other tabs</p>
+             <h3 className="text-xl font-black text-slate-900 uppercase">No Matching Classes</h3>
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2">Only classes with your department and class code are shown</p>
           </div>
         )}
       </div>
@@ -762,7 +817,7 @@ const StudentClasses: React.FC<{
             </div>
             {onNavigateToProfile ? (
               <div className="p-10 space-y-6">
-                <p className="text-slate-600 font-bold">Add your Full Legal Name, School Registry ID, Phone, Gender, Class, Department, Year, Age and Photo in <strong>My Profile</strong>. The system will then auto-fill enrollment and live participant data.</p>
+                <p className="text-slate-600 font-bold">Add your Full Legal Name, School Registry ID, Phone, Gender, Department and Class Code in <strong>My Profile</strong>. Only classes matching your Department + Class Code will appear on Join New Class.</p>
                 <button
                   type="button"
                   onClick={() => { onNavigateToProfile(); setIsProfileModalOpen(false); setClassPendingEnrollment(null); }}

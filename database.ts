@@ -39,6 +39,15 @@ interface DatabaseShape {
 }
 
 const DB_KEY = 'poly_library_database_v1';
+const SIGNUP_COOLDOWN_MS = 15000;
+const signupInFlightByEmail = new Map<string, Promise<User>>();
+const signupLastAttemptByEmail = new Map<string, number>();
+
+function normalizePortalRole(role: unknown): UserRole {
+  const raw = typeof role === 'string' ? role.trim().toUpperCase() : '';
+  if (raw === UserRole.STUDENT) return UserRole.STUDENT;
+  return UserRole.LECTURER;
+}
 
 function loadDb(): DatabaseShape {
   if (typeof window === 'undefined') {
@@ -72,6 +81,22 @@ export async function registerUserInDb(user: {
   admissionNo?: string;
   password: string;
 }): Promise<User> {
+  const normalizedRole = normalizePortalRole(user.role);
+  const emailKey = user.email.trim().toLowerCase();
+  const inFlight = signupInFlightByEmail.get(emailKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const now = Date.now();
+  const lastAttempt = signupLastAttemptByEmail.get(emailKey) ?? 0;
+  if (now - lastAttempt < SIGNUP_COOLDOWN_MS) {
+    throw new Error('Please wait a few seconds before trying to register this email again.');
+  }
+
+  signupLastAttemptByEmail.set(emailKey, now);
+
+  const signUpPromise = (async () => {
   const supabase = requireSupabaseAuth();
 
   const {
@@ -82,7 +107,7 @@ export async function registerUserInDb(user: {
     password: user.password,
     options: {
       data: {
-        role: user.role,
+        role: normalizedRole,
         name: user.name || 'Institutional User',
         department: user.department ?? null,
         admission_no: user.admissionNo ?? null,
@@ -109,7 +134,7 @@ export async function registerUserInDb(user: {
       user_id: signUpData.user.id,
       name: portalName,
       email: user.email,
-      role: user.role,
+      role: normalizedRole,
       department: user.department ?? null,
       admission_no: user.admissionNo ?? null,
     },
@@ -122,10 +147,18 @@ export async function registerUserInDb(user: {
     id: signUpData.user.id,
     name: portalName,
     email: user.email,
-    role: user.role,
+    role: normalizedRole,
     department: user.department,
     admissionNo: user.admissionNo,
   };
+  })();
+
+  signupInFlightByEmail.set(emailKey, signUpPromise);
+  try {
+    return await signUpPromise;
+  } finally {
+    signupInFlightByEmail.delete(emailKey);
+  }
 }
 
 export async function authenticateUserFromDb(email: string, password: string): Promise<User | null> {
@@ -145,36 +178,14 @@ export async function authenticateUserFromDb(email: string, password: string): P
     .single();
 
   if (fetchError || !row) {
-    // Fallback: create a minimal row so the UI still works.
-    const fallbackRole = UserRole.LECTURER;
-    const derivedName = authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Institutional User';
-
-    const { error: upsertError } = await supabase.from('tknp_users').upsert(
-      {
-        user_id: authUser.id,
-        name: derivedName,
-        email,
-        role: fallbackRole,
-        department: null,
-        admission_no: null,
-      },
-      { onConflict: 'user_id' },
-    );
-    if (upsertError) throw upsertError;
-
-    return {
-      id: authUser.id,
-      name: derivedName,
-      email,
-      role: fallbackRole,
-    };
+    throw new Error('Your account profile is missing. Ask admin to invite/provision your account role (Student or Staff/Lec).');
   }
 
   return {
     id: row.user_id,
     name: row.name,
     email: row.email,
-    role: row.role as UserRole,
+    role: normalizePortalRole(row.role),
     department: row.department ?? undefined,
     admissionNo: row.admission_no ?? undefined,
   };
