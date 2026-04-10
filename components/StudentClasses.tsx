@@ -31,6 +31,36 @@ interface ClassItem {
   startTime?: string;
 }
 
+function sanitizeClassItem(raw: unknown): ClassItem | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const item = raw as Partial<ClassItem>;
+  const type = item.type === 'ONLINE' ? 'ONLINE' : item.type === 'PHYSICAL' ? 'PHYSICAL' : null;
+  if (!type) return null;
+
+  const id = String(item.id || '').trim();
+  const title = String(item.title || '').trim();
+  if (!id || !title) return null;
+
+  return {
+    id,
+    code: item.code ? String(item.code) : undefined,
+    title,
+    teacher: String(item.teacher || 'Lecturer'),
+    room: String(item.room || (type === 'ONLINE' ? 'Online' : 'Classroom')),
+    schedule: String(item.schedule || 'Scheduled by Lecturer'),
+    grade: typeof item.grade === 'number' ? item.grade : 0,
+    type,
+    studentCount: Number(item.studentCount ?? 0),
+    attendance: typeof item.attendance === 'number' ? item.attendance : 0,
+    assignmentsDone: item.assignmentsDone ? String(item.assignmentsDone) : '0 assignments',
+    platform: item.platform,
+    link: item.link ? String(item.link) : undefined,
+    isLive: Boolean(item.isLive),
+    department: String(item.department || 'GENERAL'),
+    startTime: item.startTime ? String(item.startTime) : undefined,
+  };
+}
+
 const MY_CLASSES_STORAGE_KEY = 'poly_my_classes';
 const STUDENT_PROFILE_KEY = 'poly_student_profile';
 
@@ -72,7 +102,11 @@ const matchesClassCode = (classCode: string, profileCode: string): boolean =>
 function loadMyClasses(): ClassItem[] {
   try {
     const raw = localStorage.getItem(MY_CLASSES_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(sanitizeClassItem).filter((c): c is ClassItem => Boolean(c));
+    }
   } catch {
     // ignore
   }
@@ -178,7 +212,12 @@ const StudentClasses: React.FC<{
   });
 
   useEffect(() => {
-    localStorage.setItem(MY_CLASSES_STORAGE_KEY, JSON.stringify(myClasses));
+    const sanitized = myClasses.map(sanitizeClassItem).filter((c): c is ClassItem => Boolean(c));
+    if (sanitized.length !== myClasses.length) {
+      setMyClasses(sanitized);
+      return;
+    }
+    localStorage.setItem(MY_CLASSES_STORAGE_KEY, JSON.stringify(sanitized));
   }, [myClasses]);
 
   const [registryClasses, setRegistryClasses] = useState<ClassItem[]>([]);
@@ -1375,9 +1414,10 @@ const StudentClasses: React.FC<{
   };
 
   const renderClassList = () => {
-    const filteredClasses = myClasses.filter(c => 
-      activeTab === 'PHYSICAL' ? c.type === 'PHYSICAL' : c.type === 'ONLINE'
-    );
+    const filteredClasses = myClasses.filter((c) => {
+      if (!c) return false;
+      return activeTab === 'PHYSICAL' ? c.type === 'PHYSICAL' : c.type === 'ONLINE';
+    });
 
     return (
       <div className="space-y-6 sm:space-y-12 animate-in fade-in duration-1000 pb-10 sm:pb-20">
