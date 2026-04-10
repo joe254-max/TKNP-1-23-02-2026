@@ -33,8 +33,23 @@ export async function upsertSchoolClassIndex(records: SchoolClassRecord[]): Prom
     owner_id: r.owner_id ?? ownerId,
     updated_at: new Date().toISOString(),
   }));
-  const { error } = await supabase.from('tknp_school_classes').upsert(payload, { onConflict: 'class_key' });
-  if (error) throw error;
+
+  // RLS can reject rows not owned by the current lecturer.
+  // Upsert individually so one forbidden row does not block all valid rows.
+  const results = await Promise.allSettled(
+    payload.map(async (row) => {
+      const { error } = await supabase.from('tknp_school_classes').upsert(row, { onConflict: 'class_key' });
+      if (error) throw error;
+    }),
+  );
+
+  const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+  if (failures.length === payload.length) {
+    throw failures[0].reason;
+  }
+  if (failures.length > 0) {
+    console.warn(`upsertSchoolClassIndex: skipped ${failures.length} row(s) due to RLS/validation errors.`);
+  }
 }
 
 export async function upsertSchoolStudents(records: SchoolStudentRecord[]): Promise<void> {

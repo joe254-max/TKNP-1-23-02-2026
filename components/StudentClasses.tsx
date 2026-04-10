@@ -183,6 +183,8 @@ const StudentClasses: React.FC<{
 
   const [registryClasses, setRegistryClasses] = useState<ClassItem[]>([]);
   const [dbClasses, setDbClasses] = useState<ClassItem[]>([]);
+  const [dbSyncError, setDbSyncError] = useState<string | null>(null);
+  const [dbLastSyncedAt, setDbLastSyncedAt] = useState<Date | null>(null);
 
   // Live session info written by staff dashboard
   const [liveSession, setLiveSession] = useState<{ classId: string; title: string; teacher: string; isLive: boolean } | null>(null);
@@ -248,8 +250,11 @@ const StudentClasses: React.FC<{
           isLive: false,
         }));
         setDbClasses(mapped);
+        setDbSyncError(null);
+        setDbLastSyncedAt(new Date());
       } catch {
         if (mounted) setDbClasses([]);
+        if (mounted) setDbSyncError('Cloud sync unavailable');
       }
     };
 
@@ -257,12 +262,26 @@ const StudentClasses: React.FC<{
     const unsubscribe = subscribeSchoolClasses(() => {
       void loadDbClasses();
     });
+    const pollId = window.setInterval(() => {
+      void loadDbClasses();
+    }, 10000);
 
     return () => {
       mounted = false;
       unsubscribe();
+      window.clearInterval(pollId);
     };
   }, []);
+
+  const studentMatchDebug = useMemo(() => {
+    const p = getStudentProfile();
+    return {
+      profileDept: normalizeDepartment(p.department),
+      profileClassCode: normalizeClassCode(p.classCode),
+      dbCount: dbClasses.length,
+      registryCount: registryClasses.length,
+    };
+  }, [dbClasses.length, registryClasses.length, studentProfile]);
 
   useEffect(() => {
     const loadRegistry = () => {
@@ -799,6 +818,16 @@ const StudentClasses: React.FC<{
       </div>
 
       <div className="space-y-6">
+        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 text-[10px] font-bold text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="uppercase tracking-wider text-slate-400">Sync Debug</span>
+          <span>DB classes: {studentMatchDebug.dbCount}</span>
+          <span>Registry classes: {studentMatchDebug.registryCount}</span>
+          <span>Profile Dept: {studentMatchDebug.profileDept || 'N/A'}</span>
+          <span>Profile Code: {studentMatchDebug.profileClassCode || 'N/A'}</span>
+          <span>Matches: {filteredGlobalClasses.length}</span>
+          <span>Status: {dbSyncError ? `Error (${dbSyncError})` : 'Live'}</span>
+          {dbLastSyncedAt && <span>Last sync: {dbLastSyncedAt.toLocaleTimeString()}</span>}
+        </div>
         {filteredGlobalClasses.length > 0 ? (
           filteredGlobalClasses.map((cls) => (
             <div key={cls.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-500 flex flex-col md:flex-row items-center justify-between gap-8 group">

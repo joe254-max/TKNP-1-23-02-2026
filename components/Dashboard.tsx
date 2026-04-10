@@ -127,6 +127,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
   const [schoolClassSearchOpen, setSchoolClassSearchOpen] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [lastCloudError, setLastCloudError] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const lecturerCameraPiPRef = useRef<HTMLVideoElement>(null);
@@ -294,6 +295,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
     const timeout = window.setTimeout(async () => {
       try {
         setCloudSyncStatus('saving');
+        setLastCloudError(null);
         await upsertSchoolClassIndex([
           ...physicalClasses.map((c) => ({
             class_key: c.id,
@@ -317,8 +319,11 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
           })),
         ]);
         markCloudSaved();
-      } catch {
+      } catch (err) {
         setCloudSyncStatus('error');
+        const msg = err instanceof Error ? err.message : 'Class sync failed';
+        setLastCloudError(msg);
+        showToast('Class sync failed. New classes may not appear to students yet.', 'info');
         // Keep UI responsive even when cloud sync is unavailable.
       }
     }, 700);
@@ -329,6 +334,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
     const timeout = window.setTimeout(async () => {
       try {
         setCloudSyncStatus('saving');
+        setLastCloudError(null);
         await upsertSchoolStudents(
           students.map((s) => ({
             class_key: s.classId || 'UNASSIGNED',
@@ -342,8 +348,11 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
           })),
         );
         markCloudSaved();
-      } catch {
+      } catch (err) {
         setCloudSyncStatus('error');
+        const msg = err instanceof Error ? err.message : 'Student sync failed';
+        setLastCloudError(msg);
+        showToast('Student sync failed. Please retry shortly.', 'info');
         // keep non-blocking
       }
     }, 700);
@@ -1732,6 +1741,14 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({
               {lastSavedAt && (
                 <div className="text-[10px] text-[#9a7880] bg-[#f8f1f3] px-2.5 py-1 rounded-md border border-[#f0dde1] font-bold">
                   Last saved: {lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              )}
+              <div className="text-[10px] text-[#9a7880] bg-[#f8f1f3] px-2.5 py-1 rounded-md border border-[#f0dde1] font-bold">
+                Sync Debug: {physicalClasses.length + virtualClasses.length} classes, {students.length} students
+              </div>
+              {lastCloudError && (
+                <div className="max-w-[280px] truncate text-[10px] text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200 font-bold" title={lastCloudError}>
+                  Last error: {lastCloudError}
                 </div>
               )}
               <div className="text-[11px] text-[#9a7880] bg-[#fdf2f4] px-3 py-1 rounded-md border border-[#f0dde1]">
