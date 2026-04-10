@@ -6,19 +6,24 @@ import {
   Search, Edit3, UserPlus, Presentation, FileCode, School,
   Mic, MicOff, VideoOff, MonitorUp, MessageSquare, Hand, Radio, Phone,
   UserCheck, Send, Activity, FileDown, PhoneCall, Check,
-  UserCheck2, UserX2, Filter, RotateCcw, Info, Printer, Lock, History, FileText, CloudUpload, Mail, BarChart3, ArrowRight, ExternalLink, Monitor, Zap, Globe, Layers, BookOpen, Clock, Trash2, CalendarPlus, TrendingUp, AlertTriangle, Briefcase, Calendar, Power, DoorOpen
+  UserCheck2, UserX2, Filter, RotateCcw, Info, Printer, Lock, History, FileText, CloudUpload, Mail, BarChart3, ArrowRight, ExternalLink, Monitor, Zap, Globe, Layers, BookOpen, Clock, Trash2, CalendarPlus, TrendingUp, AlertTriangle, Briefcase, Calendar, Power, DoorOpen, Bell, Settings
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { addSignal, listenSignals, removeSignal } from '../lib/tknpSupabaseSignals';
 import { jsPDF } from 'jspdf';
 import { saveRecording, getAllRecordings, type RecordedSession } from '../lib/recordingsDb';
+import ERepositoryUpload from './ERepositoryUpload';
+import { deleteClassSession, fetchClassSessions, upsertClassSession } from '../lib/timetableService';
 
 interface DashboardProps {
   user: User;
   resources: Resource[];
+  onOpenRepository?: () => void;
+  forceView?: 'HOME' | 'EREPOSITORY' | null;
+  onForceViewHandled?: () => void;
 }
 
-type SystemView = 'HOME' | 'PHYSICAL_CLASS_DETAIL' | 'ONLINE_CLASS_DETAIL';
+type SystemView = 'HOME' | 'PHYSICAL_CLASS_DETAIL' | 'ONLINE_CLASS_DETAIL' | 'EREPOSITORY';
 type ClassTab = 'REGISTER' | 'TIME TABLE' | 'STUDENTS' | 'MATERIALS';
 type MaterialCategory = 'LECTURE_NOTES' | 'LAB_MANUALS' | 'PAST_PAPERS';
 
@@ -97,7 +102,13 @@ const STORAGE_KEYS = {
   ENROLLED_STUDENTS: 'poly_enrolled_students'
 };
 
-const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
+const StaffDashboardHome: React.FC<DashboardProps> = ({
+  user,
+  resources,
+  onOpenRepository,
+  forceView = null,
+  onForceViewHandled,
+}) => {
   const [currentView, setCurrentView] = useState<SystemView>('HOME');
   const [activeClassTab, setActiveClassTab] = useState<ClassTab>('REGISTER');
   const [activeMaterialCategory, setActiveMaterialCategory] = useState<MaterialCategory | null>(null);
@@ -140,6 +151,12 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
     startTime: number;
   } | null>(null);
   const [recordedSessions, setRecordedSessions] = useState<RecordedSession[]>([]);
+
+  useEffect(() => {
+    if (!forceView) return;
+    setCurrentView(forceView);
+    onForceViewHandled?.();
+  }, [forceView, onForceViewHandled]);
 
   const RTC_CONFIG: RTCConfiguration = useMemo(() => ({
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -323,12 +340,47 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
     
     setPhysicalClasses(prev => prev.map(c => c.id === selectedPhysicalClass.id ? updatedClass : c));
     setSelectedPhysicalClass(updatedClass);
+    void deleteClassSession(selectedPhysicalClass.id, sessionId).catch(() => {
+      showToast('Cloud sync failed for session delete', 'info');
+    });
     showToast("Session Removed", "info");
   };
 
   const handleOpenSessionModal = (session?: ScheduleSession) => {
     setEditingSession(session || null);
     setIsSessionModalOpen(true);
+  };
+
+  const openTimetableFromSidebar = async () => {
+    const targetClass = selectedPhysicalClass || physicalClasses[0] || null;
+    if (!targetClass) {
+      setEditingNode(null);
+      setProvisionType('PHYSICAL');
+      setIsCreateClassModalOpen(true);
+      showToast('Create a physical class first to manage timetable', 'info');
+      return;
+    }
+
+    setSelectedPhysicalClass(targetClass);
+    setCurrentView('PHYSICAL_CLASS_DETAIL');
+    setActiveClassTab('TIME TABLE');
+
+    try {
+      const rows = await fetchClassSessions(targetClass.id);
+      if (rows.length === 0) return;
+      const cloudSchedule: ScheduleSession[] = rows.map((r) => ({
+        id: r.session_id,
+        day: r.day,
+        time: r.time,
+        venue: r.venue,
+        type: r.session_type,
+      }));
+      const mergedClass: PhysicalClass = { ...targetClass, schedule: cloudSchedule };
+      setPhysicalClasses((prev) => prev.map((c) => (c.id === targetClass.id ? mergedClass : c)));
+      setSelectedPhysicalClass(mergedClass);
+    } catch {
+      showToast('Could not load cloud timetable; showing local schedule', 'info');
+    }
   };
 
   const handleToggleMic = () => {
@@ -1288,10 +1340,99 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
     </div>
   );
 
+  const renderERepository = () => (
+    <div className="animate-in fade-in duration-500">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h3 className="text-2xl font-black text-[#1a0208]">E-Library Manager</h3>
+          <p className="text-[11px] text-[#9a7880] mt-1">
+            Upload, publish, and manage materials visible in the public E-Repository.
+          </p>
+        </div>
+        <button
+          onClick={() => setCurrentView('HOME')}
+          className="px-4 py-2 rounded-lg bg-[#fdf2f4] border border-[#f0dde1] text-[10px] font-black uppercase tracking-widest text-[#3d0413] hover:bg-[#fbeaec]"
+        >
+          Back
+        </button>
+      </div>
+      <ERepositoryUpload
+        user={user}
+        onUploadSuccess={() => showToast('E-Library updated', 'success')}
+        onOpenLibraryPage={() => {
+          if (onOpenRepository) {
+            onOpenRepository();
+          }
+        }}
+      />
+    </div>
+  );
+
       return (
-    <div className="min-h-screen bg-white relative overflow-x-hidden overflow-y-auto">
-      <div className="absolute top-0 right-0 w-[40rem] sm:w-[50rem] lg:w-[60rem] h-[40rem] sm:h-[50rem] lg:h-[60rem] bg-rose-50/40 rounded-full blur-[100px] -mr-[10rem] sm:-mr-[15rem] lg:-mr-[20rem] -mt-[10rem] sm:-mt-[15rem] lg:-mt-[20rem] pointer-events-none z-0 animate-pulse duration-[5000ms]"></div>
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-20 py-8 sm:py-10 lg:py-20 relative z-10">
+    <div className="min-h-screen bg-white relative overflow-hidden">
+      <div className="flex min-h-screen">
+        <aside className="w-[220px] bg-[#3d0413] text-white hidden md:flex flex-col border-r border-[#5f1f30]">
+          <div className="p-5 border-b border-black/10">
+            <div className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center text-[11px] font-bold mb-3">TKNP</div>
+            <div className="text-[11px] font-bold leading-tight">Kitale National Polytechnic</div>
+            <div className="text-[10px] text-white/55 mt-1">Lecturer Portal</div>
+          </div>
+          <div
+            className="p-3 flex-1 border border-black"
+            style={{ background: 'radial-gradient(ellipse at 50% 50%, rgba(58, 3, 3, 1) 0%, rgba(0, 0, 0, 1) 100%)' }}
+          >
+            <div className="text-[9px] uppercase tracking-[0.12em] text-white/35 px-2 py-1">Main</div>
+            <button className="w-full text-left px-3 py-2 rounded-none bg-white/15 text-white text-sm font-semibold flex items-center gap-2"><BarChart3 size={14} /> Dashboard</button>
+            <button onClick={() => { void openTimetableFromSidebar(); }} className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Calendar size={14} /> Timetable</button>
+            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Users size={14} /> Students <span className="ml-auto text-[9px] bg-white/20 rounded-full px-2 py-0.5">{students.length}</span></button>
+            <button
+              onClick={() => {
+                if (onOpenRepository) {
+                  onOpenRepository();
+                  return;
+                }
+                setCurrentView('EREPOSITORY');
+              }}
+              className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"
+            >
+              <BookOpen size={14} /> E-Library
+              <span className="ml-auto text-[9px] bg-white/20 rounded-full px-2 py-0.5">{resources.length}</span>
+            </button>
+            <div className="text-[9px] uppercase tracking-[0.12em] text-white/35 px-2 py-2 mt-2">Teaching</div>
+            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Check size={14} /> Attendance</button>
+            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><FileText size={14} /> Assessments</button>
+            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><BookOpen size={14} /> Materials <span className="ml-auto text-[9px] bg-white/20 rounded-full px-2 py-0.5">{resources.length}</span></button>
+            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Radio size={14} /> Live Classes</button>
+            <div className="text-[9px] uppercase tracking-[0.12em] text-white/35 px-2 py-2 mt-2">Admin</div>
+            <button className="w-full text-left px-3 py-2 text-white/70 text-sm flex items-center gap-2 hover:bg-white/10"><Settings size={14} /> Settings</button>
+          </div>
+          <div className="p-4 border-t border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-[11px] font-bold">
+                {user.name.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold">{user.name}</div>
+                <div className="text-[9px] text-white/55">{user.department || 'General Dept.'}</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="h-[52px] bg-white border-b border-[#e8dfe1] px-6 flex items-center justify-between">
+            <div className="text-[14px] font-semibold text-[#1a0208]">Lecturer Dashboard</div>
+            <div className="flex items-center gap-3">
+              <div className="text-[11px] text-[#9a7880] bg-[#fdf2f4] px-3 py-1 rounded-md border border-[#f0dde1]">
+                {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+              <button className="w-8 h-8 rounded-lg bg-[#fdf2f4] border border-[#f0dde1] flex items-center justify-center relative">
+                <Bell size={14} className="text-[#3d0413]" />
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#c0392b]" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-6 py-5 relative z-10">
         {notification && (
           <div className="fixed top-24 right-12 z-[1000] animate-in slide-in-from-right-8">
             <div className={`px-12 py-6 rounded-3xl shadow-2xl border-l-8 flex items-center gap-8 ${notification.type === 'success' ? 'bg-white border-emerald-500 text-slate-900' : 'bg-[#3d0413] border-rose-400 text-white'}`}>
@@ -1302,93 +1443,126 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
         )}
 
         {currentView === 'HOME' && (
-          <div className="space-y-16 lg:space-y-24 animate-in fade-in duration-1000">
-            <div className="flex flex-col items-center text-center max-w-5xl mx-auto space-y-3 sm:space-y-4 px-2">
-               <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mb-2 sm:mb-4">
-                  <button 
-                    onClick={() => { setCalendarAction('OPENING'); setIsCalendarModalOpen(true); }}
-                    className="px-3 sm:px-6 py-2 sm:py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2 hover:bg-emerald-100 transition shadow-sm"
-                  >
-                    <DoorOpen size={12} className="sm:w-[14px] sm:h-[14px]" /> <span className="hidden sm:inline">Open School Node</span><span className="sm:hidden">Open</span>
-                  </button>
-                  <button 
-                    onClick={() => { setCalendarAction('CLOSING'); setIsCalendarModalOpen(true); }}
-                    className="px-3 sm:px-6 py-2 sm:py-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2 hover:bg-rose-100 transition shadow-sm"
-                  >
-                    <Power size={12} className="sm:w-[14px] sm:h-[14px]" /> <span className="hidden sm:inline">Close School Node</span><span className="sm:hidden">Close</span>
-                  </button>
-               </div>
-               <div className="px-3 sm:px-6 py-1.5 sm:py-2 bg-[#3d0413]/5 rounded-full border border-[#3d0413]/10 flex items-center gap-2 sm:gap-3 mb-2 sm:mb-4">
-                  <ShieldCheck size={12} className="sm:w-[14px] sm:h-[14px] text-[#3d0413]" />
-                  <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.5em] text-[#3d0413]/70">Secure Gateway</span>
-               </div>
-               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black text-[#1a202c] uppercase tracking-tighter leading-[0.95] sm:leading-[0.9] md:leading-[0.8]">
-                 WELCOME <br />
-                 <span className="text-transparent bg-clip-text bg-gradient-to-br from-[#3d0413] via-[#800] to-rose-700 break-words">{user.name}</span>
-               </h1>
-               <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-6 mt-2 sm:mt-4">
-                 <p className="text-slate-400 font-black uppercase tracking-[0.3em] sm:tracking-[0.6em] text-[9px] sm:text-[10px] leading-loose opacity-70">SELECT MODULE</p>
-                 <div className="hidden sm:block h-px w-12 bg-slate-200"></div>
-                 <span className="text-[9px] sm:text-[10px] font-black text-[#3d0413] uppercase tracking-[0.2em] sm:tracking-[0.3em]">Term {academicConfig.term} • {academicConfig.status}</span>
-               </div>
+          <div className="space-y-4 animate-in fade-in duration-500">
+            <div className="bg-[#3d0413] rounded-2xl px-6 py-5 text-white flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <p className="text-[11px] text-white/65">Good morning,</p>
+                <h2 className="text-3xl font-black leading-tight">{user.name}</h2>
+                <p className="text-xs text-white/70">{user.role} — {user.department || 'General Department'}</p>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] px-3 py-1 rounded-md bg-white/15 border border-white/20 inline-block">
+                  Term {academicConfig.term} · {new Date().getFullYear()}/{new Date().getFullYear() + 1}
+                </div>
+                <div className="mt-2 text-[11px] text-white/75 flex items-center justify-end gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                  Active Session
+                </div>
+              </div>
             </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8 md:gap-12 lg:gap-16 max-w-[1300px] mx-auto px-2 sm:px-4 pb-10 sm:pb-16 lg:pb-20">
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-white border border-[#eddde0] rounded-xl p-4">
+                <div className="text-[10px] uppercase tracking-widest text-[#9a7880] font-semibold">My Classes</div>
+                <div className="text-4xl font-black text-[#1a0208]">{physicalClasses.length + virtualClasses.length}</div>
+                <div className="text-[10px] text-[#c07080]">Active this term</div>
+              </div>
+              <div className="bg-white border border-[#eddde0] rounded-xl p-4">
+                <div className="text-[10px] uppercase tracking-widest text-[#9a7880] font-semibold">Total Students</div>
+                <div className="text-4xl font-black text-[#1a0208]">{students.length}</div>
+                <div className="text-[10px] text-[#c07080]">Enrolled</div>
+              </div>
+              <div className="bg-white border border-[#eddde0] rounded-xl p-4">
+                <div className="text-[10px] uppercase tracking-widest text-[#9a7880] font-semibold">Avg. Attendance</div>
+                <div className="text-4xl font-black text-[#1a0208]">{students.length > 0 ? Math.round(students.reduce((a, s) => a + s.attendance, 0) / students.length) : 0}%</div>
+                <div className="text-[10px] text-[#c07080]">This week</div>
+              </div>
+              <div
+                className="bg-[#3d0413] border border-[#3d0413] rounded-xl p-4"
+                style={{ background: 'conic-gradient(from 0deg at 50% 50%, rgba(61, 4, 19, 1) 0%, rgba(0, 0, 0, 1) 100%)' }}
+              >
+                <div className="text-[10px] uppercase tracking-widest text-white/65 font-semibold">On Probation</div>
+                <div className="text-4xl font-black text-white">{students.filter(s => s.status === 'PROBATION').length}</div>
+                <div className="text-[10px] text-rose-200/70">Needs attention</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#3d0413] mb-2">My Classes</div>
+                <div className="space-y-2">
               {physicalClasses.map(c => (
-                <div key={c.id} onClick={() => { setSelectedPhysicalClass(c); setCurrentView('PHYSICAL_CLASS_DETAIL'); setActiveClassTab('REGISTER'); }} className="bg-[#f8f9fa] min-h-[280px] sm:min-h-[350px] lg:aspect-[4/5] rounded-2xl sm:rounded-[3rem] md:rounded-[4rem] lg:rounded-[5rem] p-5 sm:p-8 lg:p-12 xl:p-16 flex flex-col justify-between hover:shadow-[0_60px_100px_-30px_rgba(61,4,19,0.15)] transition-all duration-700 cursor-pointer group border border-slate-100 relative overflow-hidden active:scale-[0.98]">
-                  <div className="absolute top-4 sm:top-8 right-4 sm:right-8 flex gap-2 sm:gap-3 z-20 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div
+                  key={c.id}
+                  onClick={() => { setSelectedPhysicalClass(c); setCurrentView('PHYSICAL_CLASS_DETAIL'); setActiveClassTab('REGISTER'); }}
+                  className="border border-[#eddde0] rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#3d0413] transition"
+                  style={{ background: 'linear-gradient(90deg, rgba(29, 22, 22, 1) 0%, rgba(52, 4, 4, 1) 100%)' }}
+                >
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 border border-[#f0dde1] flex items-center justify-center text-[#3d0413]"><School size={16} /></div>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-white">{c.title}</div>
+                    <div className="text-[11px] text-rose-100/80">{c.code} · {c.room} · {c.studentCount} students</div>
+                  </div>
+                  <div className="text-[10px] bg-[#fdf2f4] border border-[#f0dde1] text-[#3d0413] px-2 py-1 rounded-md font-semibold">In-Person</div>
+                  <div className="flex gap-2">
                     <button onClick={(e) => handleOpenEdit(e, c)} className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white shadow-xl flex items-center justify-center text-slate-600 hover:text-[#3d0413] border border-slate-100"><Edit3 size={14} className="sm:w-[18px] sm:h-[18px]" /></button>
                     <button onClick={(e) => handleDeleteNode(e, c.id, 'PHYSICAL')} className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white shadow-xl flex items-center justify-center text-rose-600 border border-rose-100"><Trash2 size={14} className="sm:w-[18px] sm:h-[18px]" /></button>
-                  </div>
-                  <div className="relative z-10 space-y-6 sm:space-y-12">
-                    <div className="w-14 h-14 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl flex items-center justify-center text-[#3d0413] shadow-lg border border-slate-50 group-hover:-rotate-12 transition-transform duration-500">
-                      <School size={28} className="sm:w-10 sm:h-10 lg:w-12 lg:h-12" strokeWidth={2.5} />
-                    </div>
-                    <div className="space-y-2 sm:space-y-4">
-                      <h4 className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 uppercase tracking-tighter leading-tight group-hover:text-[#3d0413] transition-colors">{c.title}</h4>
-                      <p className="text-xs sm:text-sm font-black text-slate-400 uppercase tracking-wider sm:tracking-widest">{c.room}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-slate-200/50 pt-4 sm:pt-8 lg:pt-12 relative z-10 mt-4">
-                    <span className="text-[9px] sm:text-[11px] lg:text-[12px] font-black text-slate-900 uppercase tracking-[0.2em] sm:tracking-[0.4em]">INITIALIZE</span>
-                    <div className="w-10 h-10 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-full bg-white flex items-center justify-center text-[#3d0413] shadow-lg group-hover:translate-x-2 sm:group-hover:translate-x-4 transition-transform border border-slate-100">
-                      <ArrowRight size={18} className="sm:w-6 sm:h-6 lg:w-7 lg:h-7" strokeWidth={3} />
-                    </div>
                   </div>
                 </div>
               ))}
               {virtualClasses.map(v => (
-                <div key={v.id} onClick={() => { setSelectedOnlineClass(v); setCurrentView('ONLINE_CLASS_DETAIL'); }} className="bg-[#1a0208] min-h-[280px] sm:min-h-[350px] lg:aspect-[4/5] rounded-2xl sm:rounded-[3rem] md:rounded-[4rem] lg:rounded-[5rem] p-5 sm:p-8 lg:p-12 xl:p-16 flex flex-col justify-between hover:shadow-[0_60px_100px_-30px_rgba(225,29,72,0.3)] transition-all duration-700 cursor-pointer group border-b-[8px] sm:border-b-[14px] md:border-b-[18px] lg:border-b-[20px] border-black relative overflow-hidden active:scale-[0.98] shadow-2xl">
-                  <div className="absolute top-4 sm:top-8 right-4 sm:right-8 flex gap-2 sm:gap-3 z-20 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div key={v.id} onClick={() => { setSelectedOnlineClass(v); setCurrentView('ONLINE_CLASS_DETAIL'); }} className="bg-white border border-[#eddde0] rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#7a0f2a] border-l-[3px] border-l-[#7a0f2a] transition">
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 border border-[#f0dde1] flex items-center justify-center text-[#7a0f2a]"><Monitor size={16} /></div>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-[#1a0208]">{v.title}</div>
+                    <div className="text-[11px] text-[#9a7880]">{v.code} · {v.platform} · {v.students} students</div>
+                  </div>
+                  <div className="text-[10px] bg-[#fff0f6] border border-[#f0d5dd] text-[#7a0f2a] px-2 py-1 rounded-md font-semibold">Online</div>
+                  <div className="flex gap-2">
                     <button onClick={(e) => handleOpenEdit(e, v)} className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white/10 backdrop-blur-xl shadow-xl flex items-center justify-center text-white/80 border border-white/10"><Edit3 size={14} className="sm:w-[18px] sm:h-[18px]" /></button>
                     <button onClick={(e) => handleDeleteNode(e, v.id, 'ONLINE')} className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white/10 backdrop-blur-xl shadow-xl flex items-center justify-center text-rose-400 border border-rose-900/50"><Trash2 size={14} className="sm:w-[18px] sm:h-[18px]" /></button>
                   </div>
-                  <div className="relative z-10 space-y-6 sm:space-y-12">
-                    <div className="w-14 h-14 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-white/10 backdrop-blur-3xl rounded-xl sm:rounded-2xl lg:rounded-3xl flex items-center justify-center text-rose-400 shadow-2xl border border-white/20 group-hover:rotate-12 transition-transform duration-500">
-                      <Monitor size={28} className="sm:w-10 sm:h-10 lg:w-12 lg:h-12" strokeWidth={2.5} />
-                    </div>
-                    <div className="space-y-2 sm:space-y-4">
-                      <h4 className="text-lg sm:text-2xl lg:text-3xl font-black text-white uppercase tracking-tighter leading-tight group-hover:text-rose-400 transition-colors">{v.title}</h4>
-                      <p className="text-xs sm:text-sm font-black text-rose-300 uppercase tracking-wider sm:tracking-widest">{v.platform}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-white/10 pt-4 sm:pt-8 lg:pt-12 relative z-10 mt-4">
-                    <span className="text-[9px] sm:text-[11px] lg:text-[12px] font-black text-white uppercase tracking-[0.2em] sm:tracking-[0.4em]">JOIN NODE</span>
-                    <div className="w-10 h-10 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-full bg-white/10 backdrop-blur-xl flex items-center justify-center text-white shadow-lg group-hover:translate-x-2 sm:group-hover:translate-x-4 transition-transform border border-white/20">
-                      <ArrowRight size={18} className="sm:w-6 sm:h-6 lg:w-7 lg:h-7" strokeWidth={3} />
-                    </div>
-                  </div>
                 </div>
               ))}
-              <button 
-                onClick={() => { setEditingNode(null); setProvisionType('PHYSICAL'); setIsCreateClassModalOpen(true); }} 
-                className="min-h-[200px] sm:min-h-[280px] lg:aspect-[4/5] bg-white border-2 sm:border-4 border-dashed border-slate-200 rounded-2xl sm:rounded-[3rem] md:rounded-[4rem] lg:rounded-[5rem] flex flex-col items-center justify-center gap-4 sm:gap-8 md:gap-10 text-slate-300 hover:text-[#3d0413] hover:border-[#3d0413] hover:bg-[#3d0413]/5 transition-all duration-700 group active:scale-[0.98] shadow-sm"
+              <button
+                onClick={() => { setEditingNode(null); setProvisionType('PHYSICAL'); setIsCreateClassModalOpen(true); }}
+                className="rounded-xl border-[1.5px] border-dashed border-[#ddb8bf] p-4 flex items-center gap-3 text-rose-100 hover:border-[#3d0413] hover:text-white transition"
+                style={{
+                  backgroundColor: 'rgba(82, 0, 10, 1)',
+                  borderImage: 'linear-gradient(90deg, rgba(66, 6, 17, 1) 0%, rgba(28, 23, 23, 1) 100%) 1',
+                }}
               >
-                <div className="w-16 h-16 sm:w-24 sm:h-24 lg:w-32 lg:h-32 rounded-full border-2 sm:border-4 border-dashed border-current flex items-center justify-center group-hover:scale-110 sm:group-hover:scale-125 group-hover:border-solid transition-all">
-                  <Plus size={32} strokeWidth={3} className="sm:w-14 sm:h-14 lg:w-20 lg:h-20 group-hover:rotate-90 transition-transform" />
+                <div className="w-7 h-7 rounded-md bg-white border border-[#ddb8bf] flex items-center justify-center text-[#3d0413]">
+                  <Plus size={16} />
                 </div>
-                <span className="text-[10px] sm:text-[12px] lg:text-[14px] font-black uppercase tracking-[0.3em] sm:tracking-[0.6em] block">ADD NEW CLASS</span>
+                <span className="text-[11px] font-semibold">Add new class</span>
               </button>
+                </div>
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#3d0413] mb-2">Today's Schedule</div>
+                <div className="space-y-2">
+                  {(selectedPhysicalClass?.schedule || physicalClasses[0]?.schedule || []).slice(0, 3).map((s) => (
+                    <div key={s.id} className="bg-white border border-[#eddde0] rounded-lg px-4 py-3 flex items-center gap-3">
+                      <span className={`w-2 h-2 rounded-full ${s.type === 'LECTURE' ? 'bg-[#3d0413]' : s.type === 'PRACTICAL' ? 'bg-[#7a0f2a]' : 'bg-[#c0392b]'}`} />
+                      <div className="text-[11px] font-semibold text-[#3d0413] min-w-[65px]">{s.time.split('-')[0].trim()}</div>
+                      <div>
+                        <div className="text-sm font-semibold text-[#1a0208]">{selectedPhysicalClass?.title || physicalClasses[0]?.title} — {s.type}</div>
+                        <div className="text-[11px] text-[#9a7880]">{s.venue}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#3d0413] mb-2">Quick Actions</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => { const c = physicalClasses[0]; if (c) { setSelectedPhysicalClass(c); setCurrentView('PHYSICAL_CLASS_DETAIL'); setActiveClassTab('REGISTER'); } }} className="bg-white border border-[#eddde0] rounded-lg px-3 py-2 text-xs font-semibold text-[#3d0413] text-left hover:bg-[#fdf2f4]">Take Attendance</button>
+                    <button onClick={() => setCurrentView('EREPOSITORY')} className="bg-white border border-[#eddde0] rounded-lg px-3 py-2 text-xs font-semibold text-[#3d0413] text-left hover:bg-[#fdf2f4]">Library</button>
+                    <button onClick={() => { const v = virtualClasses[0]; if (v) { setSelectedOnlineClass(v); setCurrentView('ONLINE_CLASS_DETAIL'); } }} className="bg-white border border-[#eddde0] rounded-lg px-3 py-2 text-xs font-semibold text-[#3d0413] text-left hover:bg-[#fdf2f4]">Start Live Class</button>
+                    <button onClick={() => { const c = physicalClasses[0]; if (c) { setSelectedPhysicalClass(c); setCurrentView('PHYSICAL_CLASS_DETAIL'); setActiveClassTab('STUDENTS'); } }} className="bg-white border border-[#eddde0] rounded-lg px-3 py-2 text-xs font-semibold text-[#3d0413] text-left hover:bg-[#fdf2f4]">View Reports</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1429,6 +1603,10 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
           </div>
         )}
         {currentView === 'ONLINE_CLASS_DETAIL' && selectedOnlineClass && renderOnlineClassDetail()}
+        {currentView === 'EREPOSITORY' && renderERepository()}
+      </div>
+          </div>
+        </div>
       </div>
 
       {/* CREATE / EDIT CLASS MODAL */}
@@ -1541,7 +1719,7 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
                 <button onClick={() => { setIsSessionModalOpen(false); setEditingSession(null); }} className="p-4 bg-white/10 rounded-[1.5rem] hover:bg-white/20 transition-all"><X size={32}/></button>
               </div>
               <div className="p-12">
-                <form onSubmit={(e) => {
+                <form onSubmit={async (e) => {
                    e.preventDefault();
                    if (!selectedPhysicalClass) return;
                    const formData = new FormData(e.currentTarget as HTMLFormElement);
@@ -1558,6 +1736,11 @@ const StaffDashboardHome: React.FC<DashboardProps> = ({ user, resources }) => {
                    const updatedClass = { ...selectedPhysicalClass, schedule: updatedSchedule };
                    setPhysicalClasses(prev => prev.map(c => c.id === selectedPhysicalClass.id ? updatedClass : c));
                    setSelectedPhysicalClass(updatedClass);
+                   try {
+                     await upsertClassSession(selectedPhysicalClass.id, sessionData);
+                   } catch {
+                     showToast('Cloud sync failed for timetable session', 'info');
+                   }
                    showToast(editingSession ? "Session Synchronized" : "Session Provisioned");
                    setIsSessionModalOpen(false);
                    setEditingSession(null);
