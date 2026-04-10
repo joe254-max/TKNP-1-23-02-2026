@@ -92,15 +92,18 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, setView, currentView, p
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          <span
-            className={`hidden md:inline-flex items-center rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest ${
+          <button
+            type="button"
+            onClick={() => handleNavClick('profile')}
+            className={`hidden md:inline-flex items-center rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest transition ${
               profileComplete
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
             }`}
+            title="Open My Profile"
           >
             {profileComplete ? 'Profile Complete' : 'Complete Profile'}
-          </span>
+          </button>
           <div className="text-right hidden sm:block pr-2 sm:pr-4">
             <p className="text-[9px] sm:text-[10px] font-black text-slate-900 leading-none truncate max-w-[80px] sm:max-w-[120px]">{user.name.toUpperCase()}</p>
             <p className="text-[7px] sm:text-[8px] text-slate-400 uppercase font-black tracking-widest mt-1">{user.role}</p>
