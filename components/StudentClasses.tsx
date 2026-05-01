@@ -291,9 +291,13 @@ const StudentClasses: React.FC<{
         setDbClasses(mapped);
         setDbSyncError(null);
         setDbLastSyncedAt(new Date());
-      } catch {
+      } catch (err) {
         if (mounted) setDbClasses([]);
-        if (mounted) setDbSyncError('Cloud sync unavailable');
+        if (mounted) setDbSyncError(
+          err instanceof Error && err.message.includes('not configured')
+            ? 'Database not configured. Contact admin.'
+            : 'Cloud sync unavailable'
+        );
       }
     };
 
@@ -894,13 +898,33 @@ const StudentClasses: React.FC<{
               </button>
             </div>
           ))
-        ) : (
-          <div className="text-center py-20 bg-white rounded-[4rem] border-2 border-dashed border-slate-200">
-             <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-200"><Filter size={48} /></div>
-             <h3 className="text-xl font-black text-slate-900 uppercase">No Matching Classes</h3>
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2">Only classes with your department and class code are shown</p>
-          </div>
-        )}
+        ) : (() => {
+          const profileData = getStudentProfile();
+          const hasIncompleteProfile = !profileData?.department || !profileData?.classCode;
+          return (
+            <div className="text-center py-20 bg-white rounded-[4rem] border-2 border-dashed border-slate-200">
+              <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-200">
+                {hasIncompleteProfile ? <AlertCircle size={48} /> : <Filter size={48} />}
+              </div>
+              <h3 className="text-xl font-black text-slate-900 uppercase">
+                {hasIncompleteProfile ? 'Complete Your Profile' : 'No Matching Classes'}
+              </h3>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2">
+                {hasIncompleteProfile 
+                  ? 'Add your department and class code to see available classes'
+                  : 'Only classes with your department and class code are shown'}
+              </p>
+              {hasIncompleteProfile && (
+                <button 
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="mt-8 px-10 py-5 bg-[#3d0413] text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-xl border-b-4 border-black active:scale-95 transition-all flex items-center justify-center gap-3 mx-auto"
+                >
+                  <UserCircle size={18} /> Complete Profile
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {isProfileModalOpen && (
@@ -1322,7 +1346,10 @@ const StudentClasses: React.FC<{
   };
 
   const renderClassDetail = () => {
-    if (!selectedClass) return null;
+    if (!selectedClass) {
+      setActiveView('LIST');
+      return null;
+    }
     return (
       <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-right-8 duration-500 pb-20">
         <button 
@@ -1456,9 +1483,11 @@ const StudentClasses: React.FC<{
               key={cls.id}
               className={`bg-white rounded-2xl sm:rounded-[2.5rem] lg:rounded-[3.5rem] border border-slate-100 p-5 sm:p-8 lg:p-10 hover:shadow-[0_50px_80px_-20px_rgba(61,4,19,0.12)] transition-all duration-700 group cursor-pointer active:scale-[0.98] flex flex-col justify-between min-h-[320px] sm:min-h-[380px] lg:aspect-[5/6] ${activeTab === 'ONLINE' ? 'border-l-4 sm:border-l-8 border-l-[#3d0413]' : ''}`}
               onClick={() => {
+                setSelectedClass(cls);
                 if (activeTab === 'PHYSICAL') {
-                  setSelectedClass(cls);
                   setActiveView('DETAIL');
+                } else if (activeTab === 'ONLINE') {
+                  setActiveView(cls.isLive ? 'LIVE_JOIN' : 'NOT_LIVE');
                 }
               }}
             >
