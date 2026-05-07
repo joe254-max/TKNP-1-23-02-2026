@@ -94,9 +94,14 @@ const App: React.FC = () => {
         session.user.email?.split('@')[0] ||
         'Institutional User';
 
-      // If the portal row doesn't exist (fresh OAuth signup), create it.
+      // If the portal row exists, honor the selected Google OAuth portal mode when possible.
       const existing = await loadPortalUser(authUserId);
-      if (existing) return existing;
+      if (existing) {
+        if (pendingRole && existing.role !== pendingRole) {
+          return { ...existing, role: pendingRole };
+        }
+        return existing;
+      }
 
       const role = pendingRole ?? UserRole.LECTURER;
 
