@@ -986,7 +986,7 @@ const StudentClasses: React.FC<{
   );
 
   const renderClassNotLive = () => {
-    if (!selectedClass) return null;
+    if (!selectedClass) return renderClassList();
     const nextSessionLabel = selectedClass.startTime || selectedClass.schedule || 'To be announced';
     const nextTimeToken = String(nextSessionLabel).split(' ').pop() || nextSessionLabel;
     return (
@@ -1046,7 +1046,7 @@ const StudentClasses: React.FC<{
   };
 
   const renderLiveJoin = () => {
-    if (!selectedClass) return null;
+    if (!selectedClass) return renderClassList();
     const teacherIsLive = !!(liveSession && liveSession.isLive && liveSession.classId === selectedClass.id);
 
     return (
@@ -1347,8 +1347,7 @@ const StudentClasses: React.FC<{
 
   const renderClassDetail = () => {
     if (!selectedClass) {
-      setActiveView('LIST');
-      return null;
+      return renderClassList();
     }
     return (
       <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-right-8 duration-500 pb-20">
@@ -1711,6 +1710,12 @@ const StudentClasses: React.FC<{
       </div>
     );
   };
+
+  React.useEffect(() => {
+    if (!selectedClass && ['DETAIL', 'NOT_LIVE', 'LIVE_JOIN'].includes(activeView)) {
+      setActiveView('LIST');
+    }
+  }, [activeView, selectedClass]);
 
   if (activeView === 'DETAIL') return renderClassDetail();
   if (activeView === 'NOT_LIVE') return renderClassNotLive();
