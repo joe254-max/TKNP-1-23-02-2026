@@ -8,6 +8,13 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          '/mess': {
+            target: 'http://127.0.0.1:3000',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/mess/, ''),
+          },
+        },
       },
       plugins: [react()],
       define: {

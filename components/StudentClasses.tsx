@@ -1,13 +1,37 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { addSignal, listenSignals, removeSignal } from '../lib/tknpSupabaseSignals';
-import { 
-  ArrowLeft, Users, Calendar, Clock, GraduationCap, 
-  BookOpen, FileText, BarChart3, Presentation, Plus, 
-  ExternalLink, ChevronRight, School, Monitor, Video, 
-  Bell, CalendarPlus, MessageSquare, AlertCircle, Play,
-  Search, X, CheckCircle2, Filter, User, Smartphone, Hash, History, FileDown, UserCircle,
-  Maximize2, Minimize2, Settings, Camera, Fullscreen, HelpCircle, BarChart2
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  Bell,
+  BookOpen,
+  Calendar,
+  CalendarPlus,
+  Camera,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  FileDown,
+  FileText,
+  History,
+  HelpCircle,
+  Hash,
+  Maximize2,
+  MessageSquare,
+  Monitor,
+  Minus,
+  Minimize2,
+  Play,
+  Presentation,
+  Search,
+  Settings,
+  Smartphone,
+  User,
+  UserCircle,
+  Video,
+  X,
+  Plus,
 } from 'lucide-react';
+import { addSignal, listenSignals, removeSignal } from '../lib/tknpSupabaseSignals';
 import { getAllRecordings, type RecordedSession } from '../lib/recordingsDb';
 import { getStoredProfile } from '../lib/profile';
 import { fetchAllSchoolClasses, subscribeSchoolClasses } from '../lib/schoolClassService';
@@ -31,40 +55,7 @@ interface ClassItem {
   startTime?: string;
 }
 
-function sanitizeClassItem(raw: unknown): ClassItem | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const item = raw as Partial<ClassItem>;
-  const type = item.type === 'ONLINE' ? 'ONLINE' : item.type === 'PHYSICAL' ? 'PHYSICAL' : null;
-  if (!type) return null;
-
-  const id = String(item.id || '').trim();
-  const title = String(item.title || '').trim();
-  if (!id || !title) return null;
-
-  return {
-    id,
-    code: item.code ? String(item.code) : undefined,
-    title,
-    teacher: String(item.teacher || 'Lecturer'),
-    room: String(item.room || (type === 'ONLINE' ? 'Online' : 'Classroom')),
-    schedule: String(item.schedule || 'Scheduled by Lecturer'),
-    grade: typeof item.grade === 'number' ? item.grade : 0,
-    type,
-    studentCount: Number(item.studentCount ?? 0),
-    attendance: typeof item.attendance === 'number' ? item.attendance : 0,
-    assignmentsDone: item.assignmentsDone ? String(item.assignmentsDone) : '0 assignments',
-    platform: item.platform,
-    link: item.link ? String(item.link) : undefined,
-    isLive: Boolean(item.isLive),
-    department: String(item.department || 'GENERAL'),
-    startTime: item.startTime ? String(item.startTime) : undefined,
-  };
-}
-
-const MY_CLASSES_STORAGE_KEY = 'poly_my_classes';
-const STUDENT_PROFILE_KEY = 'poly_student_profile';
-
-export interface StudentProfile {
+interface StudentProfile {
   fullName: string;
   schoolRegistryId: string;
   phone: string;
@@ -73,55 +64,57 @@ export interface StudentProfile {
   classCode?: string;
 }
 
-const DEPARTMENT_ALIASES: Record<string, string> = {
-  MECHAINCALENGINEERING: 'MECHANICALENGINEERING',
-};
-
-const normalizeDepartment = (value?: string): string => {
-  const normalized = (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return DEPARTMENT_ALIASES[normalized] ?? normalized;
-};
-
-const normalizeClassCode = (value?: string): string =>
-  (value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-const extractClassCode = (cls: ClassItem): string => {
-  const fromCode = normalizeClassCode(cls.code);
-  if (fromCode) return fromCode;
-  const title = (cls.title || '').toUpperCase();
-  const match = title.match(/[A-Z0-9]+(?:[-/][A-Z0-9]+)*/);
-  return normalizeClassCode(match?.[0] || '');
-};
-
-const matchesDepartment = (classDept: string, profileDept: string): boolean =>
-  classDept === profileDept || classDept.includes(profileDept) || profileDept.includes(classDept);
-
-const matchesClassCode = (classCode: string, profileCode: string): boolean =>
-  classCode === profileCode || classCode.startsWith(profileCode) || profileCode.startsWith(classCode);
-
-function loadMyClasses(): ClassItem[] {
-  try {
-    const raw = localStorage.getItem(MY_CLASSES_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.map(sanitizeClassItem).filter((c): c is ClassItem => Boolean(c));
-    }
-  } catch {
-    // ignore
-  }
-  return [];
+interface LiveSession {
+  classId: string;
+  title: string;
+  teacher: string;
+  isLive: boolean;
 }
 
-function loadStudentProfile(): StudentProfile | null {
-  try {
-    const raw = localStorage.getItem(STUDENT_PROFILE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {
-    // ignore
-  }
-  return null;
+interface Props {
+  initialTab?: 'PHYSICAL' | 'ONLINE';
+  isLecturerPreview?: boolean;
+  onNavigateToProfile?: () => void;
 }
+
+const MY_CLASSES_KEY = 'poly_my_classes';
+const PROFILE_KEY = 'poly_student_profile';
+const REGISTRY_KEY = 'poly_institutional_registry';
+const LIVE_SESSION_KEY = 'poly_live_session';
+const ENROLLED_STUDENTS_KEY = 'poly_enrolled_students';
+const CURRENT_STUDENT_ID_KEY = 'poly_current_student_identity';
+
+const SEED_CLASSES: ClassItem[] = [
+  {
+    id: 'seed-1',
+    title: 'POWER SYSTEMS II',
+    teacher: 'Dr. Kamau',
+    room: 'Lab 2',
+    schedule: 'Mon/Wed/Fri 08:00 AM',
+    grade: 82,
+    type: 'PHYSICAL',
+    studentCount: 42,
+    attendance: 90,
+    assignmentsDone: '4/5 done',
+    department: 'ELECTRICAL ENGINEERING',
+  },
+  {
+    id: 'seed-2',
+    title: 'PROGRAMMING BASICS',
+    teacher: 'Dr. Wangari',
+    room: 'Online',
+    schedule: 'Tue/Thu 02:00 PM',
+    grade: 85,
+    type: 'ONLINE',
+    platform: 'Microsoft Teams',
+    link: 'https://teams.microsoft.com/l/meetup-join/ict101',
+    isLive: false,
+    studentCount: 38,
+    attendance: 95,
+    assignmentsDone: '5/5 done',
+    department: 'ICT',
+  },
+];
 
 const GLOBAL_AVAILABLE_CLASSES: ClassItem[] = [
   {
@@ -132,7 +125,7 @@ const GLOBAL_AVAILABLE_CLASSES: ClassItem[] = [
     schedule: 'Mon/Wed 08:00 AM',
     type: 'PHYSICAL',
     studentCount: 25,
-    department: 'ELECTRICAL ENGINEERING'
+    department: 'ELECTRICAL ENGINEERING',
   },
   {
     id: 'g2',
@@ -145,7 +138,7 @@ const GLOBAL_AVAILABLE_CLASSES: ClassItem[] = [
     link: 'https://teams.microsoft.com/l/meetup-join/oop',
     isLive: true,
     studentCount: 60,
-    department: 'ICT'
+    department: 'ICT',
   },
   {
     id: 'g3',
@@ -155,7 +148,7 @@ const GLOBAL_AVAILABLE_CLASSES: ClassItem[] = [
     schedule: 'Tue/Thu 11:00 AM',
     type: 'PHYSICAL',
     studentCount: 40,
-    department: 'CIVIL ENGINEERING'
+    department: 'CIVIL ENGINEERING',
   },
   {
     id: 'g4',
@@ -168,7 +161,7 @@ const GLOBAL_AVAILABLE_CLASSES: ClassItem[] = [
     link: 'https://zoom.us/j/ent101',
     isLive: false,
     studentCount: 120,
-    department: 'BUSINESS'
+    department: 'BUSINESS',
   },
   {
     id: 'g5',
@@ -178,481 +171,386 @@ const GLOBAL_AVAILABLE_CLASSES: ClassItem[] = [
     schedule: 'Mon/Fri 02:00 PM',
     type: 'PHYSICAL',
     studentCount: 35,
-    department: 'ELECTRICAL ENGINEERING'
-  }
+    department: 'ELECTRICAL ENGINEERING',
+  },
 ];
 
-const StudentClasses: React.FC<{
-  initialTab?: 'PHYSICAL' | 'ONLINE';
-  isLecturerPreview?: boolean;
-  onNavigateToProfile?: () => void;
-}> = ({ initialTab = 'PHYSICAL', isLecturerPreview = false, onNavigateToProfile }) => {
-  const [activeView, setActiveView] = useState<'LIST' | 'DETAIL' | 'NOT_LIVE' | 'JOIN_LIST' | 'LIVE_JOIN'>( 'LIST');
-  const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
-  const [activeTab, setActiveTab] = useState<'PHYSICAL' | 'ONLINE'>(initialTab);
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Pending class when profile is incomplete (show "Go to My Profile" modal)
-  const [classPendingEnrollment, setClassPendingEnrollment] = useState<ClassItem | null>(null);
+const normalizeDepartment = (value?: string): string =>
+  (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-  const savedClasses = loadMyClasses();
-  const defaultClasses: ClassItem[] = savedClasses.length > 0 ? [] : [
-    { id: 'sc1', title: 'POWER SYSTEMS II', teacher: 'Dr. Kamau', room: 'Lab 2', schedule: 'Mon/Wed/Fri 05:00 AM', grade: 82, type: 'PHYSICAL', studentCount: 42, attendance: 90, assignmentsDone: '4/5 done', department: 'ELECTRICAL ENGINEERING' },
-    { id: 'sc2', title: 'PROGRAMMING BASICS', teacher: 'Dr. Wangari', room: 'Online', schedule: 'Tue/Thu 02:00 PM', grade: 85, type: 'ONLINE', platform: 'Microsoft Teams', link: 'https://teams.microsoft.com/l/meetup-join/ict101', isLive: false, studentCount: 38, attendance: 95, assignmentsDone: '5/5 done', department: 'ICT' }
-  ];
-  const [myClasses, setMyClasses] = useState<ClassItem[]>(savedClasses.length > 0 ? savedClasses : defaultClasses);
-  const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(loadStudentProfile());
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [profileForm, setProfileForm] = useState<StudentProfile>(() => {
-    const p = loadStudentProfile();
-    const userStr =
-      typeof window !== 'undefined' ? sessionStorage.getItem('poly_library_user_current') : null;
-    const name = userStr ? (() => { try { return JSON.parse(userStr).name || ''; } catch { return ''; } })() : '';
-    return p ? { ...p } : { fullName: name, schoolRegistryId: '', phone: '', gender: '' };
-  });
+const normalizeClassCode = (value?: string): string =>
+  (value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-  useEffect(() => {
-    const sanitized = myClasses.map(sanitizeClassItem).filter((c): c is ClassItem => Boolean(c));
-    if (sanitized.length !== myClasses.length) {
-      setMyClasses(sanitized);
-      return;
+const deptMatch = (classDept: string, profileDept: string): boolean =>
+  classDept === profileDept || classDept.includes(profileDept) || profileDept.includes(classDept);
+
+const codeMatch = (classCode: string, profileCode: string): boolean =>
+  classCode === profileCode || classCode.startsWith(profileCode) || profileCode.startsWith(classCode);
+
+function safeParse<T>(value: string | null): T | null {
+  if (value === null) return null;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
+const sanitizeClassItem = (raw: unknown): ClassItem | null => {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const record = raw as Record<string, unknown>;
+  const typeValue = record.type === 'ONLINE' ? 'ONLINE' : record.type === 'PHYSICAL' ? 'PHYSICAL' : null;
+  if (!typeValue) return null;
+
+  const id = String(record.id ?? record.class_key ?? '').trim();
+  const title = String(record.title ?? '').trim();
+  if (!id || !title) return null;
+
+  const department = String(record.department ?? record.department ?? 'GENERAL').trim() || 'GENERAL';
+  const schedule = String(record.schedule ?? record.room_or_platform ?? 'TBA');
+  const room = String(record.room ?? record.room_or_platform ?? (typeValue === 'ONLINE' ? 'Online' : 'Classroom'));
+  const teacher = String(record.teacher ?? record.teacher_name ?? 'Lecturer');
+
+  return {
+    id,
+    code: record.code ? String(record.code) : undefined,
+    title,
+    teacher,
+    room,
+    schedule,
+    grade: typeof record.grade === 'number' ? record.grade : 0,
+    type: typeValue,
+    studentCount: Number(record.studentCount ?? record.student_count ?? 0),
+    attendance: typeof record.attendance === 'number' ? record.attendance : 0,
+    assignmentsDone: record.assignmentsDone ? String(record.assignmentsDone) : '0 assignments',
+    platform: record.platform ? String(record.platform) as ClassItem['platform'] : undefined,
+    link: record.link ? String(record.link) : undefined,
+    isLive: Boolean(record.isLive),
+    department,
+    startTime: record.startTime ? String(record.startTime) : undefined,
+  };
+};
+
+const loadMyClasses = (): ClassItem[] | null => {
+  const raw = localStorage.getItem(MY_CLASSES_KEY);
+  if (raw === null) return null;
+  const parsed = safeParse<unknown[]>(raw);
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map(sanitizeClassItem)
+    .filter((item): item is ClassItem => item !== null);
+};
+
+const saveMyClasses = (classes: ClassItem[]): void => {
+  localStorage.setItem(MY_CLASSES_KEY, JSON.stringify(classes));
+};
+
+const loadStoredProfile = (): StudentProfile | null => {
+  const raw = localStorage.getItem(PROFILE_KEY);
+  const parsed = safeParse<Record<string, unknown>>(raw);
+  if (!parsed) return null;
+
+  return {
+    fullName: String(parsed.fullName ?? parsed.full_name ?? ''),
+    schoolRegistryId: String(parsed.schoolRegistryId ?? parsed.schoolRegistryId ?? parsed.school_registry_id ?? ''),
+    phone: String(parsed.phone ?? ''),
+    gender: String(parsed.gender ?? ''),
+    department: String(parsed.department ?? ''),
+    classCode: String(parsed.classCode ?? parsed.class_code ?? parsed.class ?? ''),
+  };
+};
+
+const loadRegistryClasses = (): ClassItem[] => {
+  const raw = localStorage.getItem(REGISTRY_KEY);
+  const parsed = safeParse<unknown[]>(raw);
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map(sanitizeClassItem)
+    .filter((item): item is ClassItem => item !== null);
+};
+
+const loadLiveSessionFromStorage = (): LiveSession | null => {
+  const raw = localStorage.getItem(LIVE_SESSION_KEY);
+  const parsed = safeParse<Record<string, unknown>>(raw);
+  if (!parsed) return null;
+  if (!parsed.classId || typeof parsed.classId !== 'string') return null;
+  return {
+    classId: parsed.classId,
+    title: String(parsed.title ?? ''),
+    teacher: String(parsed.teacher ?? ''),
+    isLive: Boolean(parsed.isLive),
+  };
+};
+
+const getStudentProfile = (): StudentProfile => {
+  const sessionRaw = typeof window !== 'undefined' ? sessionStorage.getItem('poly_library_user_current') : null;
+  let sessionUser: Record<string, unknown> | null = null;
+  if (sessionRaw) {
+    try {
+      sessionUser = JSON.parse(sessionRaw) as Record<string, unknown>;
+    } catch {
+      sessionUser = null;
     }
-    localStorage.setItem(MY_CLASSES_STORAGE_KEY, JSON.stringify(sanitized));
-  }, [myClasses]);
+  }
 
-  const [registryClasses, setRegistryClasses] = useState<ClassItem[]>([]);
+  const userId = typeof sessionUser?.id === 'string' ? sessionUser.id : undefined;
+  const stored = userId ? getStoredProfile(userId) : null;
+  if (stored) {
+    return {
+      fullName: stored.fullName || String(sessionUser?.name ?? 'Student'),
+      schoolRegistryId: stored.schoolRegistryId || '',
+      phone: stored.phone || '',
+      gender: stored.gender || '',
+      department: stored.department || '',
+      classCode: stored.class || '',
+    };
+  }
+
+  const fallback = loadStoredProfile();
+  return fallback ?? {
+    fullName: String(sessionUser?.name ?? 'Student'),
+    schoolRegistryId: '',
+    phone: '',
+    gender: '',
+    department: '',
+    classCode: '',
+  };
+};
+
+const getCurrentStudentIdentity = (): { id: string; name: string } => {
+  const raw = localStorage.getItem(CURRENT_STUDENT_ID_KEY);
+  const parsed = safeParse<Record<string, unknown>>(raw);
+  if (parsed && typeof parsed.id === 'string' && typeof parsed.name === 'string') {
+    return { id: parsed.id, name: parsed.name };
+  }
+
+  const profile = getStudentProfile();
+  return {
+    id: profile.schoolRegistryId || `anon-${Date.now()}`,
+    name: profile.fullName || 'Student',
+  };
+};
+
+const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPreview = false, onNavigateToProfile }) => {
+  const [activeView, setActiveView] = useState<'LIST' | 'DETAIL' | 'NOT_LIVE' | 'JOIN_LIST' | 'LIVE_JOIN'>('LIST');
+  const [activeTab, setActiveTab] = useState<'PHYSICAL' | 'ONLINE'>(initialTab);
+  const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [profile, setProfile] = useState<StudentProfile>(() => getStudentProfile());
+  const [profileDraft, setProfileDraft] = useState<StudentProfile>(() => getStudentProfile());
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [pendingEnrollment, setPendingEnrollment] = useState<ClassItem | null>(null);
+  const [myClassesSaved, setMyClassesSaved] = useState<boolean>(() => loadMyClasses() !== null);
+  const [myClasses, setMyClasses] = useState<ClassItem[]>(() => {
+    const loaded = loadMyClasses();
+    return loaded === null ? [...SEED_CLASSES] : loaded;
+  });
   const [dbClasses, setDbClasses] = useState<ClassItem[]>([]);
-  const [dbSyncError, setDbSyncError] = useState<string | null>(null);
-  const [dbLastSyncedAt, setDbLastSyncedAt] = useState<Date | null>(null);
-
-  // Live session info written by staff dashboard
-  const [liveSession, setLiveSession] = useState<{ classId: string; title: string; teacher: string; isLive: boolean } | null>(null);
-
-  // Student's own live video node
+  const [registryClasses, setRegistryClasses] = useState<ClassItem[]>([]);
+  const [syncStatus, setSyncStatus] = useState<string>('Idle');
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
+  const [liveSession, setLiveSession] = useState<LiveSession | null>(() => loadLiveSessionFromStorage());
+  const [recordedSessions, setRecordedSessions] = useState<RecordedSession[]>([]);
+  const [teacherFeedStatus, setTeacherFeedStatus] = useState<'CONNECTING' | 'LIVE' | 'OFFLINE' | 'ERROR'>('OFFLINE');
   const [isStudentCamOn, setIsStudentCamOn] = useState(false);
   const [studentStream, setStudentStream] = useState<MediaStream | null>(null);
-  const studentVideoRef = React.useRef<HTMLVideoElement | null>(null);
-
-  // Teacher live feed (WebRTC receiver) – camera = first video track, screen = second
-  const teacherVideoRef = React.useRef<HTMLVideoElement | null>(null);
-  const teacherPiPRef = React.useRef<HTMLVideoElement | null>(null);
-  const teacherPeerRef = React.useRef<RTCPeerConnection | null>(null);
-  const teacherSignalRef = React.useRef<any | null>(null);
-  const teacherFirestoreUnsubRef = React.useRef<(() => void) | null>(null);
-  const teacherIdRef = React.useRef<string | null>(null);
-  const pendingCandidatesRef = React.useRef<any[]>([]);
-  const teacherStreamsRef = React.useRef<{ camera: MediaStream | null; screen: MediaStream | null }>({ camera: null, screen: null });
-  const teacherVideoCountRef = React.useRef(0);
-  const [teacherFeedStatus, setTeacherFeedStatus] = useState<'CONNECTING' | 'LIVE' | 'OFFLINE' | 'ERROR'>('OFFLINE');
-  const [teacherStreams, setTeacherStreams] = useState<{ camera: MediaStream | null; screen: MediaStream | null }>({ camera: null, screen: null });
-  const [recordedSessions, setRecordedSessions] = useState<RecordedSession[]>([]);
-
-  // Feed video container: theater, fullscreen, settings, screenshot
-  const feedContainerRef = React.useRef<HTMLDivElement | null>(null);
   const [feedTheaterMode, setFeedTheaterMode] = useState(false);
   const [feedFullscreen, setFeedFullscreen] = useState(false);
   const [feedSettingsOpen, setFeedSettingsOpen] = useState(false);
-  const [feedQuality, setFeedQuality] = useState<string>('1080p');
-  const [feedPlaybackSpeed, setFeedPlaybackSpeed] = useState(1);
+  const [feedQuality, setFeedQuality] = useState<'Auto' | '720p' | '1080p'>('1080p');
+  const [feedPlaybackSpeed, setFeedPlaybackSpeed] = useState<1 | 0.5 | 0.75 | 1.25 | 1.5 | 1.75 | 2>(1);
   const [feedSubtitlesOn, setFeedSubtitlesOn] = useState(false);
-  const [feedSubtitleLang, setFeedSubtitleLang] = useState('en');
-  const [feedAudioTrack, setFeedAudioTrack] = useState('default');
-  const [feedStatsNerdsOpen, setFeedStatsNerdsOpen] = useState(false);
-  const settingsPanelRef = React.useRef<HTMLDivElement | null>(null);
+  const [feedSubtitleLang, setFeedSubtitleLang] = useState<'en' | 'sw'>('en');
+  const [feedAudioTrack, setFeedAudioTrack] = useState<'default' | 'en' | 'sw'>('default');
+  const [feedStatsOpen, setFeedStatsOpen] = useState(false);
+
+  const teacherVideoRef = useRef<HTMLVideoElement | null>(null);
+  const teacherPiPRef = useRef<HTMLVideoElement | null>(null);
+  const studentVideoRef = useRef<HTMLVideoElement | null>(null);
+  const feedContainerRef = useRef<HTMLDivElement | null>(null);
+  const settingsPanelRef = useRef<HTMLDivElement | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const signalUnsubscribeRef = useRef<(() => void) | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const teacherIdRef = useRef<string | null>(null);
+  const teacherStreamCountRef = useRef(0);
+  const teacherStreamsRef = useRef<{ camera: MediaStream | null; screen: MediaStream | null }>({ camera: null, screen: null });
+  const [teacherStreams, setTeacherStreams] = useState<{ camera: MediaStream | null; screen: MediaStream | null }>({ camera: null, screen: null });
+
+  const profileDept = normalizeDepartment(profile.department);
+  const profileCode = normalizeClassCode(profile.classCode);
+  const profileComplete = Boolean(profileDept && profileCode);
+
+  const saveProfile = (nextProfile: StudentProfile): StudentProfile => {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(nextProfile));
+    setProfile(nextProfile);
+    setProfileDraft(nextProfile);
+    return nextProfile;
+  };
+
+  const persistMyClasses = (classes: ClassItem[]): void => {
+    setMyClasses(classes);
+    saveMyClasses(classes);
+    setMyClassesSaved(true);
+  };
+
+  const isProfileCompleteFor = (profileToCheck: StudentProfile) => {
+    return Boolean(
+      normalizeDepartment(profileToCheck.department) &&
+      normalizeClassCode(profileToCheck.classCode),
+    );
+  };
+
+  const getAllClassSources = useMemo(() => {
+    const all = [...GLOBAL_AVAILABLE_CLASSES, ...registryClasses, ...dbClasses].map((item) => sanitizeClassItem(item)).filter((item): item is ClassItem => item !== null);
+    const map = new Map<string, ClassItem>();
+    for (const item of all) {
+      const key = `${item.id}::${item.title}`;
+      if (!map.has(key)) map.set(key, item);
+    }
+    return Array.from(map.values());
+  }, [dbClasses, registryClasses]);
+
+  const enrolledIds = useMemo(() => new Set(myClasses.map((item) => item.id)), [myClasses]);
+
+  const filteredMyClasses = useMemo(
+    () => myClasses.filter((cls) => cls.type === activeTab),
+    [activeTab, myClasses],
+  );
+
+  const joinableClasses = useMemo(() => {
+    if (!profileComplete) return [];
+    return getAllClassSources.filter((cls) => {
+      if (cls.type !== activeTab) return false;
+      if (enrolledIds.has(cls.id)) return false;
+      const classDept = normalizeDepartment(cls.department);
+      const classCode = normalizeClassCode(cls.code || cls.title);
+      const searchMatch = searchQuery.trim().length === 0 || [cls.title, cls.teacher, cls.department].some((value) => value.toLowerCase().includes(searchQuery.toLowerCase()));
+      return searchMatch && deptMatch(classDept, profileDept) && codeMatch(classCode, profileCode);
+    });
+  }, [activeTab, enrolledIds, getAllClassSources, profileComplete, profileCode, profileDept, searchQuery]);
+
+  const availableOnlineClasses = useMemo(() => {
+    if (!profileComplete) return [];
+    return getAllClassSources.filter((cls) => {
+      if (cls.type !== 'ONLINE') return false;
+      if (enrolledIds.has(cls.id)) return false;
+      const classDept = normalizeDepartment(cls.department);
+      const classCode = normalizeClassCode(cls.code || cls.title);
+      return deptMatch(classDept, profileDept) && codeMatch(classCode, profileCode);
+    });
+  }, [enrolledIds, getAllClassSources, profileComplete, profileCode, profileDept]);
+
+  const liveSessionActiveFor = (cls: ClassItem) => liveSession?.isLive && liveSession.classId === cls.id;
+
+  const shouldShowEmptyState = filteredMyClasses.length === 0 && myClassesSaved;
+
+  const loadRegistry = () => {
+    setRegistryClasses(loadRegistryClasses());
+  };
+
+  const loadLiveSession = () => {
+    setLiveSession(loadLiveSessionFromStorage());
+  };
 
   useEffect(() => {
-    let mounted = true;
-    getAllRecordings().then((list) => {
-      if (mounted) setRecordedSessions(list);
-    });
-    return () => { mounted = false; };
+    let active = true;
+    const loadHistory = async () => {
+      try {
+        const recordings = await getAllRecordings();
+        if (active) setRecordedSessions(recordings);
+      } catch {
+        if (active) setRecordedSessions([]);
+      }
+    };
+    void loadHistory();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-    const loadDbClasses = async () => {
+    let active = true;
+    const loadDb = async () => {
+      setSyncStatus('Syncing');
       try {
         const rows = await fetchAllSchoolClasses();
-        if (!mounted) return;
-        const mapped: ClassItem[] = rows.map((r) => ({
-          id: r.class_key,
-          code: r.code,
-          title: `${r.code} - ${r.title}`,
-          teacher: r.teacher_name || 'Lecturer',
-          room: r.room_or_platform || (r.class_mode === 'ONLINE' ? 'Online' : 'Classroom'),
-          schedule: r.class_mode === 'ONLINE' ? 'Scheduled by Lecturer' : 'Scheduled by Lecturer',
-          type: r.class_mode,
-          studentCount: r.student_count ?? 0,
-          department: r.department || '',
-          platform: r.class_mode === 'ONLINE' ? 'Microsoft Teams' : undefined,
-          link: r.class_mode === 'ONLINE' ? '#' : undefined,
+        if (!active) return;
+        setDbClasses(rows.map((row) => ({
+          id: row.class_key,
+          code: row.code,
+          title: row.title,
+          teacher: row.teacher_name || 'Lecturer',
+          room: row.room_or_platform || (row.class_mode === 'ONLINE' ? 'Online' : 'Classroom'),
+          schedule: row.class_mode === 'ONLINE' ? 'Scheduled by Lecturer' : 'Scheduled by Lecturer',
+          type: row.class_mode,
+          studentCount: row.student_count ?? 0,
+          department: row.department || 'GENERAL',
+          platform: row.class_mode === 'ONLINE' ? 'Microsoft Teams' : undefined,
+          link: row.class_mode === 'ONLINE' ? undefined : undefined,
           isLive: false,
-        }));
-        setDbClasses(mapped);
-        setDbSyncError(null);
-        setDbLastSyncedAt(new Date());
-      } catch (err) {
-        if (mounted) setDbClasses([]);
-        if (mounted) setDbSyncError(
-          err instanceof Error && err.message.includes('not configured')
-            ? 'Database not configured. Contact admin.'
-            : 'Cloud sync unavailable'
-        );
+        })));
+        setSyncStatus('Synced');
+      } catch {
+        if (active) setSyncStatus('Fallback');
+      } finally {
+        if (active) setLastSyncTime(new Date().toLocaleTimeString());
       }
     };
-
-    void loadDbClasses();
+    void loadDb();
     const unsubscribe = subscribeSchoolClasses(() => {
-      void loadDbClasses();
+      void loadDb();
     });
-    const pollId = window.setInterval(() => {
-      void loadDbClasses();
-    }, 10000);
 
     return () => {
-      mounted = false;
+      active = false;
       unsubscribe();
-      window.clearInterval(pollId);
     };
   }, []);
 
-  const studentMatchDebug = useMemo(() => {
-    const p = getStudentProfile();
-    return {
-      profileDept: normalizeDepartment(p.department),
-      profileClassCode: normalizeClassCode(p.classCode),
-      dbCount: dbClasses.length,
-      registryCount: registryClasses.length,
-    };
-  }, [dbClasses.length, registryClasses.length, studentProfile]);
-
   useEffect(() => {
-    const loadRegistry = () => {
-      try {
-        const data = localStorage.getItem('poly_institutional_registry');
-        if (data) setRegistryClasses(JSON.parse(data));
-        else setRegistryClasses([]);
-      } catch {
-        setRegistryClasses([]);
-      }
-    };
-
-    // Load immediately and keep in sync across tabs
     loadRegistry();
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'poly_institutional_registry') loadRegistry();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === REGISTRY_KEY) loadRegistry();
+      if (event.key === LIVE_SESSION_KEY) loadLiveSession();
+      if (event.key === MY_CLASSES_KEY) {
+        const loaded = loadMyClasses();
+        if (loaded !== null) {
+          setMyClasses(loaded);
+          setMyClassesSaved(true);
+        }
+      }
     };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
-
-  // Poll live session started by staff (teacher camera)
-  useEffect(() => {
-    const loadLiveSession = () => {
-      try {
-        const raw = localStorage.getItem('poly_live_session');
-        if (!raw) {
-          setLiveSession(null);
-          return;
-        }
-        const parsed = JSON.parse(raw);
-        setLiveSession(parsed && parsed.isLive ? parsed : null);
-      } catch {
-        setLiveSession(null);
-      }
-    };
-    loadLiveSession();
-    const id = window.setInterval(loadLiveSession, 3000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const CURRENT_STUDENT_ID_KEY = 'poly_current_student_identity';
-  const RTC_CONFIG: RTCConfiguration = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-  };
-
-  const getStudentProfile = (): StudentProfile => {
-    const userStr =
-      typeof window !== 'undefined' ? sessionStorage.getItem('poly_library_user_current') : null;
-    let user: { id?: string; name?: string } | null = null;
-    if (userStr) {
-      try {
-        user = JSON.parse(userStr);
-      } catch {
-        // ignore
-      }
-    }
-    if (user?.id) {
-      const stored = getStoredProfile(user.id);
-      if (stored && (stored.fullName || stored.schoolRegistryId)) {
-        return {
-          fullName: stored.fullName || user.name || 'Student',
-          schoolRegistryId: stored.schoolRegistryId || '',
-          phone: stored.phone || '',
-          gender: stored.gender || '',
-          department: stored.department || '',
-          classCode: stored.class || '',
-        };
-      }
-    }
-    const p = loadStudentProfile();
-    const name = user?.name || '';
-    return p && (p.fullName || p.schoolRegistryId)
-      ? p
-      : { fullName: name || 'Student', schoolRegistryId: '', phone: '', gender: '', department: '', classCode: '' };
-  };
-
-  const getCurrentStudentIdentity = () => {
-    try {
-      const raw = localStorage.getItem(CURRENT_STUDENT_ID_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-    const profile = getStudentProfile();
-    const id = profile.schoolRegistryId || `anon-${Date.now()}`;
-    return { id, name: profile.fullName || 'Student Node' };
-  };
-
-  const upsertLiveParticipant = (classId: string, hasVideo: boolean, checked = false) => {
-    const profile = getStudentProfile();
-    const id = profile.schoolRegistryId || `anon-${Date.now()}`;
-    try {
-      const raw = localStorage.getItem('poly_live_participants') || '[]';
-      const list = JSON.parse(raw);
-      const record = {
-        id,
-        name: profile.fullName,
-        fullName: profile.fullName,
-        schoolRegistryId: profile.schoolRegistryId,
-        phone: profile.phone,
-        gender: profile.gender,
-        classId,
-        hasVideo,
-        checked,
-      };
-      const existingIdx = list.findIndex((p: { id: string }) => p.id === id);
-      if (existingIdx > -1) list[existingIdx] = { ...list[existingIdx], ...record };
-      else list.push(record);
-      localStorage.setItem('poly_live_participants', JSON.stringify(list));
-    } catch {
-      // ignore
-    }
-  };
-
-  const setMyParticipantVideoFlag = (classId: string, hasVideo: boolean) => {
-    upsertLiveParticipant(classId, hasVideo);
-  };
-
-  const stopStudentCamera = () => {
-    if (studentStream) studentStream.getTracks().forEach(t => t.stop());
-    setStudentStream(null);
-    setIsStudentCamOn(false);
-    if (selectedClass) setMyParticipantVideoFlag(selectedClass.id, false);
-  };
-
-  const toggleStudentCamera = async () => {
-    if (!selectedClass) return;
-    if (isStudentCamOn) {
-      stopStudentCamera();
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      setStudentStream(stream);
-      setIsStudentCamOn(true);
-      if (studentVideoRef.current) {
-        studentVideoRef.current.srcObject = stream;
-        try {
-          await studentVideoRef.current.play();
-        } catch {
-          // ignore autoplay restrictions; user click triggered
-        }
-      }
-      setMyParticipantVideoFlag(selectedClass.id, true);
-    } catch {
-      // ignore
-      setIsStudentCamOn(false);
-      setStudentStream(null);
-    }
-  };
-
-  const stopTeacherReceiver = () => {
-    try { teacherSignalRef.current?.off && teacherSignalRef.current.off('signal'); } catch {}
-    try { teacherSignalRef.current?.disconnect && teacherSignalRef.current.disconnect(); } catch {}
-    teacherSignalRef.current = null;
-    try { if (teacherFirestoreUnsubRef.current) { teacherFirestoreUnsubRef.current(); } } catch {}
-    teacherFirestoreUnsubRef.current = null;
-    teacherIdRef.current = null;
-    pendingCandidatesRef.current = [];
-    try {
-      teacherPeerRef.current?.close();
-    } catch {
-      // ignore
-    }
-    teacherPeerRef.current = null;
-    teacherStreamsRef.current = { camera: null, screen: null };
-    teacherVideoCountRef.current = 0;
-    if (teacherVideoRef.current) teacherVideoRef.current.srcObject = null;
-    if (teacherPiPRef.current) teacherPiPRef.current.srcObject = null;
-    setTeacherStreams({ camera: null, screen: null });
-    setTeacherFeedStatus('OFFLINE');
-  };
-
-  // When student enters LIVE_JOIN, connect to teacher via WebRTC (demo signaling via BroadcastChannel)
-  useEffect(() => {
-    if (activeView !== 'LIVE_JOIN' || !selectedClass) return;
-
-    const session = liveSession;
-    if (!session || !session.isLive || session.classId !== selectedClass.id) {
-      stopTeacherReceiver();
-      return;
-    }
-
-    const identity = getCurrentStudentIdentity() || { id: `anon-${Date.now()}`, name: 'Student Node' };
-
-    // (Re)connect
-    stopTeacherReceiver();
-    setTeacherFeedStatus('CONNECTING');
-
-      teacherSignalRef.current = null;
-
-      // listen for Firestore signals for this class
-      const unsub = listenSignals(selectedClass.id, async (snapshot: any) => {
-        for (const change of snapshot.docChanges()) {
-          if (change.type !== 'added') continue;
-          const doc = change.doc;
-          const msg = doc.data();
-          if (!msg) continue;
-          if (msg.role !== 'teacher') {
-            try { await removeSignal(selectedClass.id, doc.id); } catch {}
-            continue;
-          }
-          if (msg.to && msg.to !== identity.id) continue;
-          try {
-            if (msg.type === 'offer' && msg.sdp) {
-              teacherIdRef.current = msg.from as string;
-              await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              try { await addSignal(selectedClass.id, { type: 'answer', classId: selectedClass.id, from: identity.id, role: 'student', to: msg.from, sdp: pc.localDescription ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp } : null }); } catch {}
-              // flush pending candidates
-              const teacherId = msg.from as string;
-              for (const c of pendingCandidatesRef.current) {
-                try { await addSignal(selectedClass.id, { type: 'candidate', classId: selectedClass.id, from: identity.id, role: 'student', to: teacherId, candidate: c }); } catch {}
-              }
-              pendingCandidatesRef.current = [];
-            } else if (msg.type === 'candidate' && msg.candidate) {
-              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-            } else if (msg.type === 'end') {
-              setTeacherFeedStatus('OFFLINE');
-              stopTeacherReceiver();
-            }
-          } catch {
-            setTeacherFeedStatus('ERROR');
-          }
-          try { await removeSignal(selectedClass.id, doc.id); } catch {}
-        }
-      });
-      teacherFirestoreUnsubRef.current = unsub;
-
-      // ask teacher for an offer
-      try { addSignal(selectedClass.id, { type: 'join', classId: selectedClass.id, from: identity.id, role: 'student', name: identity.name }); } catch {}
-
-    const pc = new RTCPeerConnection(RTC_CONFIG);
-    teacherPeerRef.current = pc;
-
-    pc.ontrack = (ev) => {
-      const [stream] = ev.streams;
-      if (!stream || ev.track.kind !== 'video') return;
-      setTeacherFeedStatus('LIVE');
-      if (isLecturerPreview) {
-        if (teacherVideoRef.current) teacherVideoRef.current.srcObject = null;
-        if (teacherPiPRef.current) teacherPiPRef.current.srcObject = null;
-        return;
-      }
-      const slot = teacherVideoCountRef.current === 0 ? 'camera' : 'screen';
-      teacherVideoCountRef.current = Math.min(teacherVideoCountRef.current + 1, 2);
-      const prev = teacherStreamsRef.current;
-      teacherStreamsRef.current = { ...prev, [slot]: stream };
-      setTeacherStreams(teacherStreamsRef.current);
-      ev.track.onended = () => {
-        teacherStreamsRef.current = { ...teacherStreamsRef.current, [slot]: null };
-        setTeacherStreams({ ...teacherStreamsRef.current });
-      };
-    };
-
-    pc.onicecandidate = (ev) => {
-      if (!ev.candidate) return;
-      const cand = ev.candidate.toJSON();
-      const teacherId = teacherIdRef.current;
-      if (teacherId) {
-        try { addSignal(selectedClass.id, { type: 'candidate', classId: selectedClass.id, from: identity.id, role: 'student', to: teacherId, candidate: cand }); } catch {}
-      } else {
-        // queue until we know teacher id (offer arrives)
-        pendingCandidatesRef.current.push(cand);
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      const st = pc.connectionState;
-      if (st === 'failed' || st === 'disconnected' || st === 'closed') {
-        setTeacherFeedStatus('ERROR');
-      }
-    };
-
-    // (handled via Firestore listener above)
-
+    const interval = window.setInterval(loadLiveSession, 3000);
     return () => {
-      stopTeacherReceiver();
+      window.removeEventListener('storage', onStorage);
+      window.clearInterval(interval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, selectedClass?.id, liveSession?.classId, liveSession?.isLive, isLecturerPreview]);
+  }, []);
 
-  // Attach teacher streams to video elements (main = screen preferred, PiP = camera when both)
   useEffect(() => {
-    if (isLecturerPreview) return;
-    const mainStream = teacherStreams.screen ?? teacherStreams.camera ?? null;
-    const pipStream = teacherStreams.camera && teacherStreams.screen ? teacherStreams.camera : null;
+    if (!studentStream || !studentVideoRef.current) return;
+    studentVideoRef.current.srcObject = studentStream;
+    studentVideoRef.current.play().catch(() => {});
+  }, [studentStream]);
+
+  useEffect(() => {
+    const mainStream = teacherStreamsRef.current.screen ?? teacherStreamsRef.current.camera;
     if (teacherVideoRef.current) {
       teacherVideoRef.current.srcObject = mainStream;
-      teacherVideoRef.current.playbackRate = feedPlaybackSpeed;
-      if (mainStream) {
-        teacherVideoRef.current.muted = true;
-        void teacherVideoRef.current.play();
-      }
+      teacherVideoRef.current.play().catch(() => {});
     }
     if (teacherPiPRef.current) {
-      teacherPiPRef.current.srcObject = pipStream;
-      teacherPiPRef.current.playbackRate = feedPlaybackSpeed;
-      if (pipStream) {
-        teacherPiPRef.current.muted = true;
-        void teacherPiPRef.current.play();
-      }
+      teacherPiPRef.current.srcObject = teacherStreamsRef.current.screen && teacherStreamsRef.current.camera ? teacherStreamsRef.current.camera : null;
+      teacherPiPRef.current.play().catch(() => {});
     }
-  }, [teacherStreams, isLecturerPreview, feedPlaybackSpeed]);
+  }, [teacherStreams]);
 
-  // Sync playback speed when setting changes
   useEffect(() => {
-    if (teacherVideoRef.current) teacherVideoRef.current.playbackRate = feedPlaybackSpeed;
-    if (teacherPiPRef.current) teacherPiPRef.current.playbackRate = feedPlaybackSpeed;
-  }, [feedPlaybackSpeed]);
-
-  // Fullscreen change listener
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      const isFs = !!document.fullscreenElement;
-      setFeedFullscreen(isFs && document.fullscreenElement === feedContainerRef.current);
-    };
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
-  }, []);
-
-  // Close settings panel when clicking outside
-  useEffect(() => {
-    if (!feedSettingsOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (settingsPanelRef.current && !settingsPanelRef.current.contains(e.target as Node)) {
+    const handleClick = (event: MouseEvent) => {
+      if (feedSettingsOpen && settingsPanelRef.current && !settingsPanelRef.current.contains(event.target as Node)) {
         setFeedSettingsOpen(false);
       }
     };
@@ -660,385 +558,764 @@ const StudentClasses: React.FC<{
     return () => document.removeEventListener('mousedown', handleClick);
   }, [feedSettingsOpen]);
 
-  const toggleFeedFullscreen = async () => {
-    const el = feedContainerRef.current;
-    if (!el) return;
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const isFull = document.fullscreenElement === feedContainerRef.current;
+      setFeedFullscreen(isFull);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const stopTeacherReceiver = () => {
+    signalUnsubscribeRef.current?.();
+    signalUnsubscribeRef.current = null;
     try {
-      if (document.fullscreenElement === el) {
-        await document.exitFullscreen();
+      pcRef.current?.close();
+    } catch {
+      // ignore
+    }
+    pcRef.current = null;
+    teacherIdRef.current = null;
+    pendingCandidatesRef.current = [];
+    teacherStreamsRef.current = { camera: null, screen: null };
+    setTeacherStreams({ camera: null, screen: null });
+    setTeacherFeedStatus('OFFLINE');
+    if (teacherVideoRef.current) teacherVideoRef.current.srcObject = null;
+    if (teacherPiPRef.current) teacherPiPRef.current.srcObject = null;
+  };
+
+  const connectToLiveClass = async (cls: ClassItem) => {
+    stopTeacherReceiver();
+    setTeacherFeedStatus('CONNECTING');
+
+    if (!cls.id) {
+      setTeacherFeedStatus('ERROR');
+      return;
+    }
+
+    const identity = getCurrentStudentIdentity();
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pcRef.current = pc;
+
+    pc.ontrack = (event) => {
+      if (!event.streams || event.streams.length === 0) return;
+      setTeacherFeedStatus('LIVE');
+      const incoming = event.streams[0];
+      const slot = teacherStreamCountRef.current === 0 ? 'camera' : 'screen';
+      teacherStreamCountRef.current = Math.min(teacherStreamCountRef.current + 1, 2);
+      teacherStreamsRef.current = { ...teacherStreamsRef.current, [slot]: incoming };
+      setTeacherStreams({ ...teacherStreamsRef.current });
+    };
+
+    pc.onicecandidate = async (event) => {
+      if (!event.candidate) return;
+      const candidate = event.candidate.toJSON();
+      if (teacherIdRef.current) {
+        await addSignal(cls.id, {
+          type: 'candidate',
+          classId: cls.id,
+          from: identity.id,
+          role: 'student',
+          to: teacherIdRef.current,
+          candidate,
+        });
       } else {
-        await el.requestFullscreen();
+        pendingCandidatesRef.current.push(candidate);
       }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
+        setTeacherFeedStatus('ERROR');
+      }
+    };
+
+    const unsubscribe = listenSignals(cls.id, async (snapshot) => {
+      for (const change of snapshot.docChanges()) {
+        if (change.type !== 'added') continue;
+        const doc = change.doc;
+        const msg = doc.data();
+        if (!msg || msg.role !== 'teacher') {
+          try {
+            if (msg?.role !== 'teacher') await removeSignal(cls.id, doc.id);
+          } catch {
+            // ignore
+          }
+          continue;
+        }
+        if (msg.to && msg.to !== identity.id) continue;
+
+        try {
+          if (msg.type === 'offer' && msg.sdp) {
+            teacherIdRef.current = String(msg.from ?? '');
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await addSignal(cls.id, {
+              type: 'answer',
+              classId: cls.id,
+              from: identity.id,
+              role: 'student',
+              to: msg.from,
+              sdp: pc.localDescription ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp } : null,
+            });
+            for (const candidate of pendingCandidatesRef.current) {
+              await addSignal(cls.id, {
+                type: 'candidate',
+                classId: cls.id,
+                from: identity.id,
+                role: 'student',
+                to: teacherIdRef.current,
+                candidate,
+              });
+            }
+            pendingCandidatesRef.current = [];
+          } else if (msg.type === 'candidate' && msg.candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+          } else if (msg.type === 'end') {
+            setTeacherFeedStatus('OFFLINE');
+            stopTeacherReceiver();
+          }
+        } catch {
+          setTeacherFeedStatus('ERROR');
+        }
+        try {
+          await removeSignal(cls.id, doc.id);
+        } catch {
+          // ignore
+        }
+      }
+    });
+
+    signalUnsubscribeRef.current = unsubscribe;
+    await addSignal(cls.id, {
+      type: 'join',
+      classId: cls.id,
+      from: identity.id,
+      role: 'student',
+      name: identity.name,
+    });
+  };
+
+  useEffect(() => {
+    if (activeView !== 'LIVE_JOIN' || !selectedClass) return undefined;
+    if (!liveSessionActiveFor(selectedClass)) {
+      stopTeacherReceiver();
+      return undefined;
+    }
+    void connectToLiveClass(selectedClass);
+    return () => {
+      stopTeacherReceiver();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, selectedClass?.id, liveSession?.classId, liveSession?.isLive]);
+
+  const handleEnrollClass = (cls: ClassItem, profileOverride?: StudentProfile) => {
+    const activeProfile = profileOverride ?? profile;
+    const profileReady = isProfileCompleteFor(activeProfile);
+    if (!profileReady) {
+      setPendingEnrollment(cls);
+      setProfileModalOpen(true);
+      return;
+    }
+
+    if (enrolledIds.has(cls.id)) return;
+    const enrolled: ClassItem = {
+      ...cls,
+      grade: cls.grade ?? 0,
+      attendance: cls.attendance ?? 0,
+      assignmentsDone: cls.assignmentsDone ?? '0 assignments',
+    };
+    const next = [...myClasses, enrolled];
+    persistMyClasses(next);
+    const studentId = activeProfile.schoolRegistryId || getCurrentStudentIdentity().id;
+    const enrollments = safeParse<unknown[]>(localStorage.getItem(ENROLLED_STUDENTS_KEY)) ?? [];
+    if (Array.isArray(enrollments)) {
+      const updated = [...enrollments, {
+        id: `${cls.id}-${Date.now()}`,
+        classId: cls.id,
+        admNo: activeProfile.schoolRegistryId,
+        studentName: activeProfile.fullName,
+        phone: activeProfile.phone,
+        status: 'ACTIVE',
+        attendance: 0,
+        gradeAverage: 0,
+      }];
+      localStorage.setItem(ENROLLED_STUDENTS_KEY, JSON.stringify(updated));
+    }
+    localStorage.setItem(CURRENT_STUDENT_ID_KEY, JSON.stringify({ id: studentId, name: activeProfile.fullName }));
+    setPendingEnrollment(null);
+    setActiveView('LIST');
+  };
+
+  const handleJoinClass = (cls: ClassItem) => {
+    if (liveSessionActiveFor(cls)) {
+      setSelectedClass(cls);
+      setActiveView('LIVE_JOIN');
+      return;
+    }
+
+    if (cls.type === 'ONLINE') {
+      setSelectedClass(cls);
+      setActiveView('NOT_LIVE');
+      return;
+    }
+
+    setSelectedClass(cls);
+    setActiveView('DETAIL');
+  };
+
+  const handleSaveProfile = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const savedProfile = saveProfile(profileDraft);
+    if (pendingEnrollment) {
+      handleEnrollClass(pendingEnrollment, savedProfile);
+      if (!isProfileCompleteFor(savedProfile)) {
+        return;
+      }
+    }
+    setProfileModalOpen(false);
+  };
+
+  const openProfileAction = () => {
+    if (onNavigateToProfile) {
+      onNavigateToProfile();
+      return;
+    }
+    setProfileModalOpen(true);
+  };
+
+  const toggleStudentCamera = async () => {
+    if (isStudentCamOn) {
+      studentStream?.getTracks().forEach((track) => track.stop());
+      setStudentStream(null);
+      setIsStudentCamOn(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setStudentStream(stream);
+      setIsStudentCamOn(true);
+    } catch {
+      setIsStudentCamOn(false);
+    }
+  };
+
+  const toggleFeedFullscreen = async () => {
+    if (!feedContainerRef.current) return;
+    if (document.fullscreenElement === feedContainerRef.current) {
+      await document.exitFullscreen();
+      return;
+    }
+    await feedContainerRef.current.requestFullscreen().catch(() => {});
+  };
+
+  const captureScreenshot = () => {
+    const video = teacherVideoRef.current;
+    if (!video) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 360;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const url = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `live-screenshot-${Date.now()}.png`;
+      link.click();
     } catch {
       // ignore
     }
   };
 
-  const captureFeedScreenshot = () => {
-    const video = teacherVideoRef.current;
-    const container = feedContainerRef.current;
-    if (!video || !container) return;
-    try {
-      const canvas = document.createElement('canvas');
-      const rect = video.getBoundingClientRect();
-      canvas.width = video.videoWidth || rect.width;
-      canvas.height = video.videoHeight || rect.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      if (video.readyState >= 2) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      } else {
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-      const link = document.createElement('a');
-      link.download = `feed-screenshot-${Date.now()}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    } catch {
-      // fallback: try capturing container via html2canvas if available
-      const win = window as Window & { html2canvas?: (el: HTMLElement, opts?: unknown) => Promise<HTMLCanvasElement> };
-      if (typeof win.html2canvas === 'function') {
-        win.html2canvas(container, { useCORS: true, allowTaint: true }).then((c) => {
-          const link = document.createElement('a');
-          link.download = `feed-screenshot-${Date.now()}.png`;
-          link.href = c.toDataURL('image/png');
-          link.click();
-        }).catch(() => {});
-      }
-    }
-  };
-
-  const handleJoinClass = (cls: ClassItem) => {
-    const session = liveSession;
-
-    if (session && session.isLive && session.classId === cls.id) {
-      setSelectedClass(cls);
-      setActiveView('LIVE_JOIN');
-      upsertLiveParticipant(cls.id, false, true);
-      return;
-    }
-
-    if (cls.isLive && cls.link) {
-      window.open(cls.link, '_blank');
-    } else {
-      setSelectedClass(cls);
-      setActiveView('NOT_LIVE');
-    }
-  };
-
-  const saveProfile = (p: StudentProfile) => {
-    localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(p));
-    setStudentProfile(p);
-    setProfileForm(p);
-  };
-
-  const addClassFromRegistry = (cls: ClassItem) => {
-    const profile = getStudentProfile();
-    const needsProfile = !profile.schoolRegistryId || !profile.phone || !profile.department || !profile.classCode;
-    if (needsProfile) {
-      setClassPendingEnrollment(cls);
-      if (onNavigateToProfile) {
-        setIsProfileModalOpen(true); // show "Complete in My Profile" modal
-      } else {
-        setProfileForm({ ...profile });
-        setIsProfileModalOpen(true); // legacy: show full profile form
-      }
-      return;
-    }
-    doAddClass(cls, profile);
-  };
-
-  const doAddClass = (cls: ClassItem, profile: StudentProfile) => {
-    const enrolledClass: ClassItem = {
-      ...cls,
-      grade: 0,
-      attendance: 0,
-      assignmentsDone: '0 assignments'
-    };
-    try {
-      setMyClasses((prev) => [...prev, enrolledClass]);
-      const enrollmentKey = 'poly_enrolled_students';
-      const currentEnrollmentsStr = localStorage.getItem(enrollmentKey) || '[]';
-      const currentEnrollments = JSON.parse(currentEnrollmentsStr);
-      currentEnrollments.push({
-        id: `joined-${Date.now()}`,
-        name: profile.fullName.toUpperCase(),
-        admNo: profile.schoolRegistryId.toUpperCase(),
-        phone: profile.phone,
-        gender: profile.gender,
-        classId: cls.id,
-        attendance: 0,
-        gradeAverage: 0,
-        status: 'ACTIVE'
-      });
-      localStorage.setItem(enrollmentKey, JSON.stringify(currentEnrollments));
-      localStorage.setItem(CURRENT_STUDENT_ID_KEY, JSON.stringify({ id: profile.schoolRegistryId, name: profile.fullName }));
-      setIsProfileModalOpen(false);
-      setClassPendingEnrollment(null);
-      try { window.alert(`Added "${cls.title}" to My Classes`); } catch {}
-      setActiveView('LIST');
-    } catch (err) {
-      try { window.alert('Could not add class — storage may be blocked.'); } catch {}
-    }
-  };
-
-  const handleProfileModalSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const p = { ...profileForm };
-    saveProfile(p);
-    if (classPendingEnrollment) {
-      doAddClass(classPendingEnrollment, p);
-      setClassPendingEnrollment(null);
-    }
-    setIsProfileModalOpen(false);
-  };
-
-  const filteredGlobalClasses = useMemo(() => {
-    const studentProfileData = getStudentProfile();
-    const profileDept = normalizeDepartment(studentProfileData.department);
-    const profileClassCode = normalizeClassCode(studentProfileData.classCode);
-    if (!profileDept || !profileClassCode) return [];
-
-    const combinedRegistry = [...GLOBAL_AVAILABLE_CLASSES, ...registryClasses, ...dbClasses];
-    const uniqueRegistry = Array.from(new Map(combinedRegistry.map(item => [item.id + item.title, item])).values());
-
-    return uniqueRegistry.filter(gc => {
-      const alreadyJoined = myClasses.some(mc => mc.id === gc.id || (mc.title === gc.title && mc.teacher === gc.teacher));
-      const normalizedDept = normalizeDepartment(gc.department);
-      const classCode = extractClassCode(gc);
-      const title = String(gc.title || '').toLowerCase();
-      const teacher = String(gc.teacher || '').toLowerCase();
-      const department = String(gc.department || '').toLowerCase();
-      const query = searchQuery.toLowerCase();
-      const matchesSearch = title.includes(query) || teacher.includes(query) || department.includes(query);
-      const matchesProfile = matchesDepartment(normalizedDept, profileDept) && matchesClassCode(classCode, profileClassCode);
-      return !alreadyJoined && matchesSearch && matchesProfile;
-    });
-  }, [myClasses, searchQuery, registryClasses, dbClasses]);
-
-  const availableOnlineClasses = useMemo(() => {
-    const studentProfileData = getStudentProfile();
-    const profileDept = normalizeDepartment(studentProfileData.department);
-    const profileClassCode = normalizeClassCode(studentProfileData.classCode);
-    if (!profileDept || !profileClassCode) return [];
-
-    const combinedRegistry = [...GLOBAL_AVAILABLE_CLASSES, ...registryClasses, ...dbClasses];
-    const uniqueRegistry = Array.from(new Map(combinedRegistry.map(item => [item.id + item.title, item])).values());
-    return uniqueRegistry
-      .filter(c => c.type === 'ONLINE')
-      .filter(c => matchesDepartment(normalizeDepartment(c.department), profileDept))
-      .filter(c => matchesClassCode(extractClassCode(c), profileClassCode))
-      .filter(c => !myClasses.some(mc => mc.id === c.id || (mc.title === c.title && mc.teacher === c.teacher)));
-  }, [myClasses, registryClasses, dbClasses]);
-
-  const renderJoinList = () => (
-    <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
-      <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-12">
-        <div>
-          <button 
-            onClick={() => { setActiveView('LIST'); setSearchQuery(''); }}
-            className="mb-4 flex items-center gap-3 text-slate-400 hover:text-[#3d0413] transition-all font-black text-[10px] uppercase tracking-widest"
-          >
-            <ArrowLeft size={16} strokeWidth={3} />
-            Back to Dashboard
-          </button>
-          <h2 className="text-5xl font-black text-[#1a202c] uppercase tracking-tighter leading-none">JOIN NEW CLASS</h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-3 flex items-center gap-3">
-             <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
-             Registry Node: Filtered by your profile Department + Class Code
-          </p>
-        </div>
-
-        <div className="relative w-full md:w-96 group">
-          <input
-            type="text"
-            placeholder="Search classes, teachers or depts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-14 pr-6 py-5 bg-white border border-slate-200 rounded-[2rem] text-sm font-bold shadow-sm outline-none focus:ring-4 focus:ring-[#3d0413]/5 transition-all"
-          />
-          <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" />
-        </div>
+  const renderEmptyState = () => (
+    <div className="py-20 px-8 sm:px-12 bg-white rounded-[3rem] border border-slate-200 shadow-sm text-center">
+      <div className="mx-auto mb-8 inline-flex h-20 w-20 items-center justify-center rounded-full border-2 border-dashed border-[#3d0413] text-[#3d0413]">
+        <Plus size={36} />
       </div>
+      <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">No Classes Yet</h3>
+      <p className="text-sm font-bold text-slate-500 uppercase tracking-[0.35em] mb-8">Your class list is empty. Add a new class to get started.</p>
+      <button
+        type="button"
+        onClick={() => setActiveView('JOIN_LIST')}
+        className="inline-flex items-center gap-3 px-8 py-4 bg-[#3d0413] text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.35em] shadow-lg"
+      >
+        Browse Available Classes
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  );
 
-      <div className="space-y-6">
-        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 text-[10px] font-bold text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="uppercase tracking-wider text-slate-400">Sync Debug</span>
-          <span>DB classes: {studentMatchDebug.dbCount}</span>
-          <span>Registry classes: {studentMatchDebug.registryCount}</span>
-          <span>Profile Dept: {studentMatchDebug.profileDept || 'N/A'}</span>
-          <span>Profile Code: {studentMatchDebug.profileClassCode || 'N/A'}</span>
-          <span>Matches: {filteredGlobalClasses.length}</span>
-          <span>Status: {dbSyncError ? `Error (${dbSyncError})` : 'Live'}</span>
-          {dbLastSyncedAt && <span>Last sync: {dbLastSyncedAt.toLocaleTimeString()}</span>}
+  const renderList = () => {
+    const hasNoClasses = shouldShowEmptyState;
+    return (
+      <div className="px-4 py-8 sm:px-6 lg:px-10">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-10">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.45em] text-slate-400 mb-2">My Classes</p>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black uppercase text-[#1a202c] tracking-tight">{activeTab === 'PHYSICAL' ? 'Physical Classes' : 'Online Classes'}</h1>
+          </div>
+          <div className="flex items-center gap-3 bg-slate-100 rounded-3xl p-2 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setActiveTab('PHYSICAL')}
+              className={`px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-[0.35em] transition ${activeTab === 'PHYSICAL' ? 'bg-white text-[#3d0413] shadow-md' : 'text-slate-500'}`}
+            >
+              Physical
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('ONLINE')}
+              className={`px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-[0.35em] transition ${activeTab === 'ONLINE' ? 'bg-[#3d0413] text-white shadow-md' : 'text-slate-500'}`}
+            >
+              Online
+            </button>
+          </div>
         </div>
-        {filteredGlobalClasses.length > 0 ? (
-          filteredGlobalClasses.map((cls) => (
-            <div key={cls.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-500 flex flex-col md:flex-row items-center justify-between gap-8 group">
-              <div className="flex items-center gap-8 flex-1">
-                <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center transition-all ${cls.type === 'ONLINE' ? 'bg-indigo-50 text-indigo-600' : 'bg-rose-50 text-[#3d0413]'} group-hover:scale-110`}>
-                  {cls.type === 'ONLINE' ? <Monitor size={32} /> : <School size={32} />}
-                </div>
+
+        {hasNoClasses ? renderEmptyState() : (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {filteredMyClasses.map((cls, index) => (
+              <div key={cls.id} className="bg-white rounded-[2.5rem] border border-slate-200 p-6 flex flex-col justify-between shadow-sm hover:shadow-xl transition-all">
                 <div>
-                  <h4 className="text-2xl font-black text-slate-900 uppercase tracking-tight group-hover:text-[#3d0413] transition-colors">{cls.title}</h4>
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">👨‍🏫 {cls.teacher}</span>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">🏢 {cls.room}</span>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">📅 {cls.schedule}</span>
-                    <span className="px-2 py-0.5 bg-slate-50 border border-slate-100 rounded-md text-[8px] font-black text-slate-400 uppercase tracking-widest">{cls.department}</span>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-400">Module {String(index + 1).padStart(2, '0')}</span>
+                    <span className={`px-3 py-2 rounded-2xl text-[9px] font-black uppercase tracking-[0.35em] ${activeTab === 'ONLINE' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-[#3d0413]'}`}>
+                      {cls.type}
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900 mb-4">{cls.title}</h2>
+                  <div className="space-y-3 text-sm text-slate-500">
+                    <div className="flex items-center gap-2"><span>👨‍🏫</span> {cls.teacher}</div>
+                    <div className="flex items-center gap-2"><span>🏢</span> {cls.room}</div>
+                    <div className="flex items-center gap-2"><span>📅</span> {cls.schedule}</div>
+                    {activeTab === 'ONLINE' && cls.link && <div className="flex items-center gap-2 text-[#3d0413] text-sm truncate"><span>🔗</span> {cls.link.replace(/^https?:\/\//, '')}</div>}
                   </div>
                 </div>
+                <div className="mt-6 space-y-4">
+                  {activeTab === 'PHYSICAL' ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black uppercase tracking-[0.35em] text-slate-400">Grade</span>
+                        <span className="text-lg font-black text-slate-900">{cls.grade ?? 0}%</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedClass(cls); setActiveView('DETAIL'); }}
+                        className="w-full rounded-2xl bg-[#3d0413] text-white py-4 text-[10px] font-black uppercase tracking-[0.35em]"
+                      >
+                        View Details
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        {liveSessionActiveFor(cls) ? (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 text-emerald-700 px-3 py-2 text-[10px] font-black uppercase tracking-[0.35em]">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> LIVE
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 text-slate-600 px-3 py-2 text-[10px] font-black uppercase tracking-[0.35em]"><Clock size={12} /> {cls.startTime ?? cls.schedule}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleJoinClass(cls)}
+                        className={`w-full rounded-2xl py-4 text-[10px] font-black uppercase tracking-[0.35em] ${liveSessionActiveFor(cls) ? 'bg-emerald-600 text-white' : 'bg-[#3d0413] text-white'}`}
+                      >
+                        {liveSessionActiveFor(cls) ? 'JOIN CLASS' : `Session: ${cls.startTime ?? cls.schedule}`}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-              <button 
-                onClick={() => addClassFromRegistry(cls)}
-                className="px-10 py-5 bg-[#3d0413] text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl border-b-6 border-black active:scale-95 transition-all flex items-center gap-3 whitespace-nowrap"
-              >
-                <Plus size={18} /> Join Class
-              </button>
-            </div>
-          ))
-        ) : (() => {
-          const profileData = getStudentProfile();
-          const hasIncompleteProfile = !profileData?.department || !profileData?.classCode;
-          return (
-            <div className="text-center py-20 bg-white rounded-[4rem] border-2 border-dashed border-slate-200">
-              <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-200">
-                {hasIncompleteProfile ? <AlertCircle size={48} /> : <Filter size={48} />}
-              </div>
-              <h3 className="text-xl font-black text-slate-900 uppercase">
-                {hasIncompleteProfile ? 'Complete Your Profile' : 'No Matching Classes'}
-              </h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2">
-                {hasIncompleteProfile 
-                  ? 'Add your department and class code to see available classes'
-                  : 'Only classes with your department and class code are shown'}
-              </p>
-              {hasIncompleteProfile && (
-                <button 
-                  onClick={() => setIsProfileModalOpen(true)}
-                  className="mt-8 px-10 py-5 bg-[#3d0413] text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-xl border-b-4 border-black active:scale-95 transition-all flex items-center justify-center gap-3 mx-auto"
-                >
-                  <UserCircle size={18} /> Complete Profile
-                </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => { setActiveView('JOIN_LIST'); setSearchQuery(''); }}
+              className="rounded-[2.5rem] border-2 border-dashed border-slate-300 bg-white py-16 flex flex-col items-center justify-center text-slate-400 hover:border-[#3d0413] hover:text-[#3d0413] transition-all"
+            >
+              <div className="mb-4 inline-flex items-center justify-center rounded-full border-2 border-current h-16 w-16 text-3xl">+</div>
+              <span className="text-[10px] font-black uppercase tracking-[0.35em]">{activeTab === 'PHYSICAL' ? 'Add Class' : 'Join New Class'}</span>
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'ONLINE' && (
+          <div className="mt-12 grid gap-8">
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 p-8">
+              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-3">Available Online Classes</h3>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400 mb-6">Browse classes you have not yet added.</p>
+              {availableOnlineClasses.length === 0 ? (
+                <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 text-center text-slate-500 uppercase tracking-[0.35em]">No available online classes match your profile.</div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {availableOnlineClasses.map((cls) => (
+                    <div key={cls.id} className="rounded-[2rem] border border-slate-200 p-6 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="rounded-2xl bg-indigo-50 p-3 text-indigo-600"><Monitor size={20} /></div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">{cls.platform || 'ONLINE'}</p>
+                            <h4 className="font-black text-lg text-slate-900">{cls.title}</h4>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-500">👨‍🏫 {cls.teacher}</p>
+                        <p className="text-sm text-slate-500">🏢 {cls.room}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleEnrollClass(cls)}
+                        className="mt-6 rounded-2xl bg-[#3d0413] px-5 py-4 text-[10px] font-black uppercase tracking-[0.35em] text-white"
+                      >
+                        Join Class
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          );
-        })()}
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 p-8">
+              <h3 className="text-xs font-black uppercase tracking-[0.35em] text-slate-400 mb-4 flex items-center gap-2"><History size={16} /> History Classes</h3>
+              {recordedSessions.length === 0 ? (
+                <p className="text-sm font-black uppercase tracking-[0.35em] text-slate-300">No recorded sessions yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {recordedSessions.map((rec) => (
+                    <div key={rec.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-black text-slate-900">{rec.title}</p>
+                          <p className="text-[10px] uppercase tracking-[0.35em] text-slate-500">{rec.teacherName}</p>
+                        </div>
+                        <span className="text-[10px] uppercase tracking-[0.35em] text-slate-400">{new Date(rec.date).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = URL.createObjectURL(rec.blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${rec.title.replace(/\s+/g, '-')}-${rec.date.slice(0, 10)}.webm`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="rounded-2xl bg-[#3d0413] px-4 py-3 text-[10px] font-black uppercase tracking-[0.35em] text-white"
+                        >
+                          <FileDown size={14} /> Download
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = URL.createObjectURL(rec.blob);
+                            const win = window.open('', '_blank');
+                            if (win) {
+                              win.document.write(`<video controls autoplay src="${url}" style="width:100%;height:100%;background:#000"></video>`);
+                              win.document.close();
+                            }
+                          }}
+                          className="rounded-2xl bg-slate-200 px-4 py-3 text-[10px] font-black uppercase tracking-[0.35em] text-slate-800"
+                        >
+                          Watch
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderJoinList = () => (
+    <div className="px-4 py-8 sm:px-6 lg:px-10">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between mb-10">
+        <div>
+          <button
+            type="button"
+            onClick={() => { setActiveView('LIST'); setSearchQuery(''); }}
+            className="mb-4 inline-flex items-center gap-2 text-slate-500 uppercase tracking-[0.35em] font-black text-[10px]"
+          >
+            <ArrowLeft size={16} /> Back to Classes
+          </button>
+          <h1 className="text-5xl font-black uppercase tracking-tight text-[#1a202c]">Join New Class</h1>
+          <p className="mt-3 max-w-2xl text-sm text-slate-500 uppercase tracking-[0.35em]">Filtered by your department and class code so you only see classes that match your profile.</p>
+        </div>
+        <div className="relative w-full max-w-xl">
+          <Search size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search title, teacher, department..."
+            className="w-full rounded-[2rem] border border-slate-200 bg-white py-4 pl-14 pr-6 text-sm font-bold outline-none focus:ring-4 focus:ring-[#3d0413]/10"
+          />
+        </div>
       </div>
 
-      {isProfileModalOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-in fade-in" onClick={() => { setIsProfileModalOpen(false); setClassPendingEnrollment(null); }} />
-          <div className="relative w-full max-w-xl bg-white rounded-[3.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-500">
-            <div className="bg-[#3d0413] p-10 text-white flex justify-between items-center">
-              <div>
-                <h3 className="text-3xl font-black uppercase tracking-tighter">Complete your profile</h3>
-                <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-1 opacity-60">Required to add classes and join live sessions</p>
-              </div>
-              <button type="button" onClick={() => { setIsProfileModalOpen(false); setClassPendingEnrollment(null); }} className="p-4 bg-white/10 rounded-2xl hover:bg-white/20 transition-all">
-                <X size={24} />
-              </button>
-            </div>
-            {onNavigateToProfile ? (
-              <div className="p-10 space-y-6">
-                <p className="text-slate-600 font-bold">Add your Full Legal Name, School Registry ID, Phone, Gender, Department and Class Code in <strong>My Profile</strong>. Only classes matching your Department + Class Code will appear on Join New Class.</p>
+      <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+        <div className="space-y-6">
+          {!profileComplete ? (
+            <div className="rounded-[3rem] border border-slate-200 bg-white p-10 shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400 mb-3">Complete Your Profile First</p>
+                  <h2 className="text-3xl font-black text-[#1a202c] uppercase tracking-tight">Your profile is incomplete.</h2>
+                  <p className="mt-4 text-sm text-slate-500">Add your department and class code to see available classes. No empty screen, only a clear action.</p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => { onNavigateToProfile(); setIsProfileModalOpen(false); setClassPendingEnrollment(null); }}
-                  className="w-full py-6 bg-[#3d0413] text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all border-b-6 border-black flex items-center justify-center gap-4"
+                  onClick={openProfileAction}
+                  className="rounded-2xl bg-[#3d0413] px-8 py-4 text-[10px] font-black uppercase tracking-[0.35em] text-white"
                 >
-                  <UserCircle size={18} /> Go to My Profile
+                  Complete Profile
                 </button>
               </div>
-            ) : (
-              <form onSubmit={handleProfileModalSubmit} className="p-10 space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 flex items-center gap-2"><User size={12} /> Full Legal Name</label>
-                  <input required type="text" value={profileForm.fullName} onChange={(e) => setProfileForm((f) => ({ ...f, fullName: e.target.value }))} placeholder="Enter your full name" className="w-full px-8 py-5 bg-slate-50 border border-slate-200 rounded-[1.5rem] font-bold text-sm outline-none focus:ring-4 focus:ring-[#3d0413]/5" />
+            </div>
+          ) : null}
+
+          {profileComplete && joinableClasses.length === 0 ? (
+            <div className="rounded-[3rem] border border-slate-200 bg-slate-50 p-10 text-center text-slate-500 uppercase tracking-[0.35em]">
+              No matching classes were found for your department and class code.
+            </div>
+          ) : null}
+
+          {profileComplete && joinableClasses.length > 0 ? (
+            <div className="space-y-4">
+              {joinableClasses.map((cls) => (
+                <div key={cls.id} className="rounded-[2.5rem] border border-slate-200 bg-white p-6 shadow-sm flex flex-col gap-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">{cls.type} class</p>
+                      <h3 className="text-xl font-black text-slate-900">{cls.title}</h3>
+                      <p className="mt-2 text-sm text-slate-500">{cls.teacher} • {cls.department}</p>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-4 py-2 text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">{cls.type}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-[10px] uppercase tracking-[0.35em] text-slate-500">
+                    <div className="rounded-2xl bg-slate-50 p-3">Room: {cls.room}</div>
+                    <div className="rounded-2xl bg-slate-50 p-3">Time: {cls.schedule}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleEnrollClass(cls)}
+                    className="self-start rounded-2xl bg-[#3d0413] px-8 py-4 text-[10px] font-black uppercase tracking-[0.35em] text-white"
+                  >
+                    Join Class
+                  </button>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 flex items-center gap-2"><Hash size={12} /> School Registry ID</label>
-                  <input required type="text" value={profileForm.schoolRegistryId} onChange={(e) => setProfileForm((f) => ({ ...f, schoolRegistryId: e.target.value }))} placeholder="EE/XXX/2024" className="w-full px-8 py-5 bg-slate-50 border border-slate-200 rounded-[1.5rem] font-bold text-sm outline-none focus:ring-4 focus:ring-[#3d0413]/5" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 flex items-center gap-2"><Smartphone size={12} /> Phone</label>
-                  <input required type="tel" value={profileForm.phone} onChange={(e) => setProfileForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+254 7XX XXX XXX" className="w-full px-8 py-5 bg-slate-50 border border-slate-200 rounded-[1.5rem] font-bold text-sm outline-none focus:ring-4 focus:ring-[#3d0413]/5" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 flex items-center gap-2">Gender</label>
-                  <select value={profileForm.gender} onChange={(e) => setProfileForm((f) => ({ ...f, gender: e.target.value }))} className="w-full px-8 py-5 bg-slate-50 border border-slate-200 rounded-[1.5rem] font-bold text-sm outline-none focus:ring-4 focus:ring-[#3d0413]/5">
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="space-y-6">
+          <div className="rounded-[3rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400 mb-4">Sync Debug Bar</p>
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="flex items-center justify-between"><span>DB count</span><span>{dbClasses.length}</span></div>
+              <div className="flex items-center justify-between"><span>Registry count</span><span>{registryClasses.length}</span></div>
+              <div className="flex items-center justify-between"><span>Profile Dept</span><span>{profile.department || '—'}</span></div>
+              <div className="flex items-center justify-between"><span>Profile Code</span><span>{profile.classCode || '—'}</span></div>
+              <div className="flex items-center justify-between"><span>Match count</span><span>{joinableClasses.length}</span></div>
+              <div className="flex items-center justify-between"><span>Status</span><span>{syncStatus}</span></div>
+              <div className="flex items-center justify-between"><span>Last sync</span><span>{lastSyncTime || '—'}</span></div>
+            </div>
+          </div>
+          <div className="rounded-[3rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-sm font-black uppercase tracking-[0.35em] text-slate-400 mb-4">Available pool</h3>
+            <div className="grid gap-4">
+              <div className="rounded-2xl bg-slate-50 p-4"><span className="font-black">Global seed</span></div>
+              <div className="rounded-2xl bg-slate-50 p-4"><span className="font-black">Registry source</span></div>
+              <div className="rounded-2xl bg-slate-50 p-4"><span className="font-black">Supabase fallback</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {profileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/70 backdrop-blur-sm">
+          <div className="relative w-full max-w-2xl rounded-[3rem] bg-white p-8 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => { setProfileModalOpen(false); setPendingEnrollment(null); }}
+              className="absolute right-6 top-6 text-slate-500 hover:text-slate-900"
+            >
+              <X size={24} />
+            </button>
+            <div className="mb-8">
+              <h2 className="text-3xl font-black uppercase tracking-tight text-[#1a202c]">Complete Your Profile</h2>
+              <p className="mt-3 text-sm text-slate-500">Enter Department and Class Code so joinable classes appear correctly.</p>
+            </div>
+            <form onSubmit={handleSaveProfile} className="grid gap-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-2 text-sm font-black uppercase tracking-[0.3em] text-slate-500">
+                  Full Name
+                  <input
+                    type="text"
+                    value={profileDraft.fullName}
+                    onChange={(event) => setProfileDraft((prev) => ({ ...prev, fullName: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold outline-none"
+                    required
+                  />
+                </label>
+                <label className="space-y-2 text-sm font-black uppercase tracking-[0.3em] text-slate-500">
+                  School Registry ID
+                  <input
+                    type="text"
+                    value={profileDraft.schoolRegistryId}
+                    onChange={(event) => setProfileDraft((prev) => ({ ...prev, schoolRegistryId: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold outline-none"
+                    required
+                  />
+                </label>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-2 text-sm font-black uppercase tracking-[0.3em] text-slate-500">
+                  Phone
+                  <input
+                    type="tel"
+                    value={profileDraft.phone}
+                    onChange={(event) => setProfileDraft((prev) => ({ ...prev, phone: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold outline-none"
+                    required
+                  />
+                </label>
+                <label className="space-y-2 text-sm font-black uppercase tracking-[0.3em] text-slate-500">
+                  Gender
+                  <select
+                    value={profileDraft.gender}
+                    onChange={(event) => setProfileDraft((prev) => ({ ...prev, gender: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold outline-none"
+                    required
+                  >
                     <option value="">Select</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
                   </select>
-                </div>
-                <button type="submit" className="w-full py-6 mt-4 bg-[#3d0413] text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all border-b-6 border-black flex items-center justify-center gap-4">
-                  {classPendingEnrollment ? `Save & add ${classPendingEnrollment.title}` : 'Save profile'}
-                </button>
-              </form>
-            )}
+                </label>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-2 text-sm font-black uppercase tracking-[0.3em] text-slate-500">
+                  Department
+                  <input
+                    type="text"
+                    value={profileDraft.department ?? ''}
+                    onChange={(event) => setProfileDraft((prev) => ({ ...prev, department: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold outline-none"
+                    required
+                  />
+                </label>
+                <label className="space-y-2 text-sm font-black uppercase tracking-[0.3em] text-slate-500">
+                  Class Code
+                  <input
+                    type="text"
+                    value={profileDraft.classCode ?? ''}
+                    onChange={(event) => setProfileDraft((prev) => ({ ...prev, classCode: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold outline-none"
+                    required
+                  />
+                </label>
+              </div>
+              <button
+                type="submit"
+                className="rounded-2xl bg-[#3d0413] px-8 py-4 text-[10px] font-black uppercase tracking-[0.35em] text-white"
+              >
+                Save Profile
+              </button>
+            </form>
           </div>
         </div>
       )}
     </div>
   );
 
-  const renderClassNotLive = () => {
-    if (!selectedClass) return renderClassList();
-    const nextSessionLabel = selectedClass.startTime || selectedClass.schedule || 'To be announced';
-    const nextTimeToken = String(nextSessionLabel).split(' ').pop() || nextSessionLabel;
+  const renderClassDetail = () => {
+    if (!selectedClass) return null;
     return (
-      <div className="max-w-3xl mx-auto animate-in fade-in zoom-in duration-500">
-        <button 
+      <div className="px-4 py-8 sm:px-6 lg:px-10">
+        <button
+          type="button"
           onClick={() => setActiveView('LIST')}
-          className="mb-8 flex items-center gap-3 text-slate-400 hover:text-[#3d0413] transition-all font-black text-[10px] uppercase tracking-widest"
+          className="mb-8 inline-flex items-center gap-3 text-slate-500 uppercase tracking-[0.35em] font-black text-[10px]"
         >
-          <ArrowLeft size={16} strokeWidth={3} />
-          Back to Online Node
+          <ArrowLeft size={16} /> Back
         </button>
-
-        <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl overflow-hidden">
-          <div className="bg-[#3d0413] p-12 text-center text-white relative">
-            <div className="absolute top-8 right-8 animate-pulse">
-               <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+        <div className="rounded-[3rem] bg-white border border-slate-200 p-10 shadow-sm">
+          <div className="rounded-[2.5rem] bg-[#3d0413] p-10 text-white">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.35em] text-slate-200">Physical Class Detail</p>
+                <h2 className="mt-4 text-4xl font-black uppercase tracking-tight">{selectedClass.title}</h2>
+                <p className="mt-3 text-sm text-slate-200">{selectedClass.teacher} • {selectedClass.room} • {selectedClass.schedule}</p>
+              </div>
+              <div className="rounded-3xl bg-white/10 border border-white/20 px-6 py-4 text-sm uppercase tracking-[0.35em] text-white">
+                Students: {selectedClass.studentCount}
+              </div>
             </div>
-            <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">CLASS NOT LIVE YET</h2>
-            <div className="flex items-center justify-center gap-4 text-rose-300 font-bold">
-               <Clock size={20} />
-               <span className="text-lg">Starts in: 2 hours 15 minutes</span>
-            </div>
-            <p className="mt-4 text-[11px] font-black uppercase tracking-[0.3em] opacity-60">Next Session: Today, {nextTimeToken}</p>
           </div>
-
-          <div className="p-12 space-y-12">
-             <div className="grid grid-cols-2 gap-6">
-                <button className="flex flex-col items-center gap-4 p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 hover:bg-slate-100 transition-all group">
-                   <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-[#3d0413] shadow-sm group-hover:scale-110 transition-transform"><CalendarPlus size={24} /></div>
-                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Add to Calendar</span>
-                </button>
-                <button className="flex flex-col items-center gap-4 p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 hover:bg-slate-100 transition-all group">
-                   <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-rose-600 shadow-sm group-hover:scale-110 transition-transform"><Bell size={24} /></div>
-                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Set Reminder</span>
-                </button>
-             </div>
-
-             <div>
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8 text-center">Wait-Time Resource Hub</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   {[
-                     { label: 'View Materials', icon: <BookOpen size={18} />, action: '📚' },
-                     { label: 'Check Assignments', icon: <FileText size={18} />, action: '📝' },
-                     { label: 'View Announcements', icon: <MessageSquare size={18} />, action: '💬' },
-                   ].map(item => (
-                     <button key={item.label} className="flex items-center gap-4 px-6 py-5 bg-white border border-slate-100 rounded-2xl hover:border-[#3d0413] transition-all group">
-                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-[#3d0413] group-hover:bg-[#3d0413] group-hover:text-white transition-all">{item.icon}</div>
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{item.label}</span>
-                     </button>
-                   ))}
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            {[
+              { label: 'Grade Average', value: `${selectedClass.grade ?? 0}%`, color: 'bg-[#3d0413]' },
+              { label: 'Attendance', value: `${selectedClass.attendance ?? 0}%`, color: 'bg-emerald-500' },
+              { label: 'Assignments Done', value: selectedClass.assignmentsDone ?? '0 assignments', color: 'bg-slate-900' },
+            ].map((card) => (
+              <div key={card.label} className="rounded-[2rem] border border-slate-200 bg-slate-50 p-6">
+                <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400 mb-4">{card.label}</p>
+                <p className="text-3xl font-black text-slate-900">{card.value}</p>
+                <div className="mt-6 h-2 rounded-full bg-slate-200 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: card.value.includes('%') ? card.value : '100%', backgroundColor: card.color }} />
                 </div>
-             </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {['View Materials', 'View Assignments', 'View Grades', 'View Schedule'].map((label) => (
+              <button key={label} type="button" className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900">
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderClassNotLive = () => {
+    if (!selectedClass) return null;
+    return (
+      <div className="px-4 py-8 sm:px-6 lg:px-10">
+        <button
+          type="button"
+          onClick={() => setActiveView('LIST')}
+          className="mb-8 inline-flex items-center gap-3 text-slate-500 uppercase tracking-[0.35em] font-black text-[10px]"
+        >
+          <ArrowLeft size={16} /> Back
+        </button>
+        <div className="rounded-[3rem] border border-slate-200 bg-white p-10 shadow-sm">
+          <div className="rounded-[2.5rem] bg-[#3d0413] p-10 text-center text-white">
+            <p className="text-[10px] uppercase tracking-[0.35em] text-slate-200 mb-4">Class Not Live</p>
+            <h2 className="text-4xl font-black uppercase tracking-tight">CLASS NOT LIVE YET</h2>
+            <p className="mt-4 text-sm text-slate-200">Starts in: 2h 15m • Next session: {selectedClass.schedule}</p>
+          </div>
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
+            <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-8 py-8 font-black uppercase tracking-[0.35em] text-slate-900">Add to Calendar</button>
+            <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-8 py-8 font-black uppercase tracking-[0.35em] text-slate-900">Set Reminder</button>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            {['View Materials', 'Check Assignments', 'View Announcements'].map((label) => (
+              <button key={label} type="button" className="rounded-3xl border border-slate-200 bg-white px-6 py-7 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900">
+                {label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -1046,682 +1323,146 @@ const StudentClasses: React.FC<{
   };
 
   const renderLiveJoin = () => {
-    if (!selectedClass) return renderClassList();
-    const teacherIsLive = !!(liveSession && liveSession.isLive && liveSession.classId === selectedClass.id);
-
+    if (!selectedClass) return null;
+    const isLive = liveSessionActiveFor(selectedClass);
     return (
-      <div className="max-w-5xl mx-auto animate-in fade-in zoom-in duration-500 pb-20">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
+      <div className="px-4 py-8 sm:px-6 lg:px-10">
+        <div className="flex flex-col gap-6 lg:flex-row lg:justify-between lg:items-center mb-8">
           <button
-            onClick={() => {
-              stopTeacherReceiver();
-              stopStudentCamera();
-              setActiveView('LIST');
-            }}
-            className="flex items-center gap-3 text-slate-400 hover:text-[#3d0413] transition-all font-black text-[10px] uppercase tracking-widest"
+            type="button"
+            onClick={() => { stopTeacherReceiver(); setActiveView('LIST'); }}
+            className="inline-flex items-center gap-3 text-slate-500 uppercase tracking-[0.35em] font-black text-[10px]"
           >
-            <ArrowLeft size={16} strokeWidth={3} />
-            Back to Online Node
+            <ArrowLeft size={16} /> Back
           </button>
-
-          <div className="flex items-center gap-3">
-            <div className={`px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.35em] border ${
-              teacherIsLive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'
-            }`}>
-              {teacherIsLive ? 'Live Session' : 'Offline'}
-            </div>
+          <div className="flex flex-wrap gap-3 items-center">
+            <span className={`rounded-full px-4 py-2 text-[9px] font-black uppercase tracking-[0.35em] ${isLive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+              {isLive ? 'Live' : 'Offline'}
+            </span>
             <button
+              type="button"
               onClick={toggleStudentCamera}
-              className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm border transition-all ${
-                isStudentCamOn ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' : 'bg-white text-[#3d0413] border-slate-200 hover:bg-slate-50'
-              }`}
+              className="rounded-2xl bg-white px-5 py-3 text-[10px] font-black uppercase tracking-[0.35em] border border-slate-200"
             >
               {isStudentCamOn ? 'Turn Off My Cam' : 'Turn On My Cam'}
             </button>
           </div>
         </div>
-
-        <div className={`grid grid-cols-1 gap-8 ${feedTheaterMode ? 'lg:grid-cols-1' : 'lg:grid-cols-3'}`}>
-          <div className={feedTheaterMode ? 'w-full' : 'lg:col-span-2'}>
-            <div
-              ref={feedContainerRef}
-              className={`relative bg-slate-950 aspect-video rounded-[2.5rem] overflow-hidden shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white/5 ${feedFullscreen ? 'rounded-none' : ''}`}
-            >
-              <video
-                ref={teacherVideoRef}
-                autoPlay
-                playsInline
-                className={`w-full h-full object-cover opacity-95 ${isLecturerPreview ? 'opacity-0' : ''}`}
-              />
-              {!isLecturerPreview && teacherStreams.camera && teacherStreams.screen && (
-                <div className="absolute bottom-4 right-4 w-32 sm:w-40 aspect-video rounded-xl overflow-hidden border-2 border-white/30 shadow-2xl bg-slate-900 z-10">
-                  <video ref={teacherPiPRef} autoPlay playsInline muted className="w-full h-full object-cover" title="Lecturer camera" />
-                  <span className="absolute bottom-0 left-0 right-0 py-1 bg-black/60 text-[9px] font-bold text-white text-center uppercase">Camera</span>
-                </div>
-              )}
-
-              {isLecturerPreview && teacherFeedStatus === 'LIVE' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 bg-amber-950/90 z-10 border-2 border-amber-500/30 rounded-[2.5rem]">
-                  <div className="w-20 h-20 bg-amber-500/20 rounded-full flex items-center justify-center mb-6 text-amber-400 border-2 border-amber-500/50">
-                    <Monitor className="w-10 h-10" />
-                  </div>
-                  <p className="text-amber-100 text-sm font-black uppercase tracking-wider mb-2">
-                    Lecturer preview – do not share this window
-                  </p>
-                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest max-w-sm">
-                    This tab does not show the live feed to avoid mirror effect. Close or minimize it when screen sharing. Students see your shared screen in their own view.
-                  </p>
-                </div>
-              )}
-
-              {teacherFeedStatus !== 'LIVE' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
-                  <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6 text-white/30">
-                    <Video size={36} />
-                  </div>
-                  <p className="text-white/80 text-[10px] font-black uppercase tracking-[0.45em]">
-                    {teacherFeedStatus === 'CONNECTING'
-                      ? 'Connecting to teacher feed...'
-                      : teacherFeedStatus === 'ERROR'
-                        ? 'Feed connection failed. Retry by reopening the session.'
-                        : 'Teacher feed is offline.'}
-                  </p>
-                </div>
-              )}
-
-              <div className="absolute top-5 left-5 px-4 py-2 bg-emerald-500 text-white rounded-2xl text-[8px] font-black uppercase tracking-[0.35em] flex items-center gap-3 shadow-2xl z-20">
-                <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                <span className="truncate max-w-[260px]">{selectedClass.title}</span>
+        <div className={`grid gap-6 ${feedTheaterMode ? '' : 'lg:grid-cols-[2fr_1fr]'}`}>
+          <div className="rounded-[3rem] bg-slate-950 p-6 shadow-xl relative" ref={feedContainerRef}>
+            <div className="absolute top-6 left-6 rounded-full bg-emerald-500 px-3 py-2 text-[10px] font-black uppercase tracking-[0.35em] text-white">LIVE</div>
+            <video ref={teacherVideoRef} autoPlay playsInline muted className="h-[60vh] w-full rounded-[2rem] object-cover bg-black" />
+            {teacherStreams.camera && teacherStreams.screen && (
+              <div className="absolute bottom-6 right-6 w-40 rounded-[1.5rem] overflow-hidden border-2 border-white/20 bg-slate-900">
+                <video ref={teacherPiPRef} autoPlay playsInline muted className="h-full w-full object-cover" />
               </div>
-
-              {/* Feed controls: Theater, Fullscreen, Settings, Screenshot */}
-              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-end gap-2 z-20">
-                <button
-                  type="button"
-                  onClick={() => setFeedTheaterMode((v) => !v)}
-                  className="p-2.5 rounded-xl bg-black/50 hover:bg-black/70 text-white transition-all"
-                  title={feedTheaterMode ? 'Exit theater mode' : 'Theater mode'}
-                >
-                  {feedTheaterMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleFeedFullscreen}
-                  className="p-2.5 rounded-xl bg-black/50 hover:bg-black/70 text-white transition-all"
-                  title={feedFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                >
-                  <Fullscreen size={18} />
-                </button>
-                <div className="relative" ref={settingsPanelRef}>
-                  <button
-                    type="button"
-                    onClick={() => setFeedSettingsOpen((v) => !v)}
-                    className="p-2.5 rounded-xl bg-black/50 hover:bg-black/70 text-white transition-all"
-                    title="Settings"
-                  >
-                    <Settings size={18} />
-                  </button>
-                  {feedSettingsOpen && (
-                    <div className="absolute right-0 bottom-full mb-2 w-72 max-h-[80vh] overflow-y-auto rounded-2xl bg-slate-900 border border-white/10 shadow-2xl py-3 z-30">
-                      <div className="px-4 py-2 border-b border-white/10">
-                        <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">Feed settings</span>
-                      </div>
-                      <div className="px-4 py-3 space-y-4">
-                        <div>
-                          <p className="text-[9px] font-black text-white/50 uppercase tracking-widest mb-2">Quality</p>
-                          <div className="flex flex-wrap gap-2">
-                            {['Auto', '720p', '1080p'].map((q) => (
-                              <button
-                                key={q}
-                                type="button"
-                                onClick={() => { setFeedQuality(q); setFeedSettingsOpen(false); }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase ${feedQuality === q ? 'bg-[#3d0413] text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}
-                              >
-                                {q}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-[9px] font-black text-white/50 uppercase tracking-widest mb-2">Playback speed</p>
-                          <div className="flex flex-wrap gap-2">
-                            {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((s) => (
-                              <button
-                                key={s}
-                                type="button"
-                                onClick={() => { setFeedPlaybackSpeed(s); }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${feedPlaybackSpeed === s ? 'bg-[#3d0413] text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}
-                              >
-                                {s}x
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-[9px] font-black text-white/50 uppercase tracking-widest mb-2">Subtitles / CC</p>
-                          <div className="flex items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setFeedSubtitlesOn((v) => !v)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase ${feedSubtitlesOn ? 'bg-emerald-600 text-white' : 'bg-white/10 text-white/80'}`}
-                            >
-                              {feedSubtitlesOn ? 'On' : 'Off'}
-                            </button>
-                            <select
-                              value={feedSubtitleLang}
-                              onChange={(e) => setFeedSubtitleLang(e.target.value)}
-                              className="bg-white/10 text-white text-xs font-bold rounded-lg px-3 py-1.5 border border-white/20"
-                            >
-                              <option value="en">English</option>
-                              <option value="sw">Swahili</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-[9px] font-black text-white/50 uppercase tracking-widest mb-2">Audio track</p>
-                          <select
-                            value={feedAudioTrack}
-                            onChange={(e) => setFeedAudioTrack(e.target.value)}
-                            className="w-full bg-white/10 text-white text-xs font-bold rounded-lg px-3 py-2 border border-white/20"
-                          >
-                            <option value="default">Default</option>
-                            <option value="en">English</option>
-                            <option value="sw">Swahili</option>
-                          </select>
-                        </div>
-                        <div className="pt-2 border-t border-white/10 space-y-2">
-                          <button
-                            type="button"
-                            onClick={() => { setFeedStatsNerdsOpen(true); setFeedSettingsOpen(false); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 text-xs font-bold"
-                          >
-                            <BarChart2 size={14} /> Stats for Nerds
-                          </button>
-                          <button
-                            type="button"
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 text-xs font-bold"
-                          >
-                            <HelpCircle size={14} /> Report / Help
-                          </button>
-                        </div>
-                      </div>
+            )}
+            {(!teacherStreams.camera && !teacherStreams.screen) && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-white/70">
+                <Video size={44} />
+                <p className="mt-4 uppercase tracking-[0.35em] text-sm font-black">{teacherFeedStatus === 'CONNECTING' ? 'CONNECTING...' : teacherFeedStatus === 'ERROR' ? 'CONNECTION ERROR' : 'OFFLINE'}</p>
+              </div>
+            )}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button type="button" onClick={() => setFeedTheaterMode((prev) => !prev)} className="rounded-2xl bg-white/10 px-4 py-3 text-white text-[10px] font-black uppercase tracking-[0.35em]">{feedTheaterMode ? 'Exit Theater' : 'Theater Mode'}</button>
+              <button type="button" onClick={toggleFeedFullscreen} className="rounded-2xl bg-white/10 px-4 py-3 text-white text-[10px] font-black uppercase tracking-[0.35em]">Fullscreen</button>
+              <button type="button" onClick={() => setFeedSettingsOpen((prev) => !prev)} className="rounded-2xl bg-white/10 px-4 py-3 text-white text-[10px] font-black uppercase tracking-[0.35em]">Settings</button>
+              <button type="button" onClick={captureScreenshot} className="rounded-2xl bg-white/10 px-4 py-3 text-white text-[10px] font-black uppercase tracking-[0.35em]">Screenshot</button>
+            </div>
+          </div>
+          {!feedTheaterMode && (
+            <div className="space-y-6">
+              <div className="rounded-[3rem] bg-white border border-slate-200 p-6 shadow-sm">
+                <h3 className="text-sm font-black uppercase tracking-[0.35em] text-slate-400 mb-4">Session Preview</h3>
+                <p className="text-lg font-black text-slate-900">{selectedClass.title}</p>
+                <p className="mt-2 text-sm text-slate-500">Instructor: {selectedClass.teacher}</p>
+                <p className="mt-3 text-sm uppercase tracking-[0.35em] text-slate-500">Feed: {teacherFeedStatus}</p>
+              </div>
+              <div className="rounded-[3rem] bg-white border border-slate-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-black uppercase tracking-[0.35em] text-slate-400">My Camera</h4>
+                  <span className={`text-[10px] font-black uppercase tracking-[0.35em] ${isStudentCamOn ? 'text-emerald-600' : 'text-slate-400'}`}>{isStudentCamOn ? 'ON' : 'OFF'}</span>
+                </div>
+                <div className="h-64 rounded-[2rem] bg-slate-950 overflow-hidden border border-slate-200">
+                  <video ref={studentVideoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+                  {!isStudentCamOn && (
+                    <div className="absolute inset-0 flex items-center justify-center text-white/30">
+                      <Camera size={28} />
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={captureFeedScreenshot}
-                  className="p-2.5 rounded-xl bg-black/50 hover:bg-black/70 text-white transition-all"
-                  title="Screenshot feed"
-                >
-                  <Camera size={18} />
-                </button>
               </div>
             </div>
-          </div>
-
-          {!feedTheaterMode && (
-          <div className="space-y-6">
-            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
-              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-2">Session Preview</h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em] mb-6">
-                Instructor: {selectedClass.teacher}
-              </p>
-
-              <div className="space-y-3 text-[11px] font-bold text-slate-600">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400 font-black uppercase text-[9px] tracking-widest">Status</span>
-                  <span className={teacherIsLive ? 'text-emerald-600 font-black' : 'text-slate-400 font-black'}>
-                    {teacherIsLive ? 'LIVE' : 'OFFLINE'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400 font-black uppercase text-[9px] tracking-widest">Feed</span>
-                  <span className="font-black">
-                    {teacherFeedStatus === 'LIVE' ? 'CONNECTED' : teacherFeedStatus}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em]">My Camera</h4>
-                <span className={`text-[9px] font-black uppercase tracking-widest ${isStudentCamOn ? 'text-emerald-600' : 'text-slate-300'}`}>
-                  {isStudentCamOn ? 'ON' : 'OFF'}
-                </span>
-              </div>
-              <div className="relative bg-slate-950 rounded-[2rem] overflow-hidden aspect-video border border-white/5">
-                <video
-                  ref={studentVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover opacity-90"
-                />
-                {!isStudentCamOn && (
-                  <div className="absolute inset-0 flex items-center justify-center text-white/20">
-                    <Video size={26} />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
           )}
         </div>
-
-        {/* Stats for Nerds modal */}
-        {feedStatsNerdsOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/70" onClick={() => setFeedStatsNerdsOpen(false)} />
-            <div className="relative bg-slate-900 rounded-2xl border border-white/10 shadow-2xl max-w-lg w-full p-6 max-h-[85vh] overflow-y-auto">
+        {feedSettingsOpen && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-6 bg-black/40">
+            <div ref={settingsPanelRef} className="w-full max-w-md rounded-[2rem] bg-slate-950 p-6 text-white">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
-                  <BarChart2 size={20} /> Stats for Nerds
-                </h3>
-                <button type="button" onClick={() => setFeedStatsNerdsOpen(false)} className="p-2 rounded-lg hover:bg-white/10 text-white/80">
-                  <X size={18} />
-                </button>
+                <h3 className="text-lg font-black uppercase tracking-[0.35em]">Feed Settings</h3>
+                <button type="button" onClick={() => setFeedSettingsOpen(false)} className="text-slate-300"><X size={20} /></button>
               </div>
-              <div className="space-y-3 text-xs font-mono text-white/90">
-                <div className="flex justify-between"><span className="text-white/50">Feed status</span><span>{teacherFeedStatus}</span></div>
-                <div className="flex justify-between"><span className="text-white/50">Quality (preference)</span><span>{feedQuality}</span></div>
-                <div className="flex justify-between"><span className="text-white/50">Playback speed</span><span>{feedPlaybackSpeed}x</span></div>
-                <div className="flex justify-between"><span className="text-white/50">Subtitles</span><span>{feedSubtitlesOn ? 'On' : 'Off'}</span></div>
-                <div className="flex justify-between"><span className="text-white/50">Class</span><span className="truncate max-w-[200px]">{selectedClass?.title}</span></div>
-                <div className="flex justify-between"><span className="text-white/50">Instructor</span><span>{selectedClass?.teacher}</span></div>
-                {teacherVideoRef.current && (
-                  <>
-                    <div className="flex justify-between"><span className="text-white/50">Video dimensions</span><span>{teacherVideoRef.current.videoWidth}×{teacherVideoRef.current.videoHeight}</span></div>
-                    <div className="flex justify-between"><span className="text-white/50">Ready state</span><span>{teacherVideoRef.current.readyState}</span></div>
-                  </>
-                )}
-              </div>
-              <p className="mt-4 text-[10px] text-white/40 uppercase tracking-widest">Technical info for support and debugging</p>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderClassDetail = () => {
-    if (!selectedClass) {
-      return renderClassList();
-    }
-    return (
-      <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-right-8 duration-500 pb-20">
-        <button 
-          onClick={() => setActiveView('LIST')}
-          className="mb-8 flex items-center gap-3 text-slate-400 hover:text-[#3d0413] transition-all font-black text-[10px] uppercase tracking-widest"
-        >
-          <ArrowLeft size={16} strokeWidth={3} />
-          Back to My Classes
-        </button>
-
-        <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl overflow-hidden">
-          <div className="bg-[#3d0413] p-12 text-white">
-            <div className="flex justify-between items-start mb-10">
-              <h2 className="text-5xl font-black uppercase tracking-tighter leading-none">{selectedClass.title}</h2>
-              <div className={`p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 ${selectedClass.type === 'ONLINE' ? 'text-blue-300' : 'text-rose-300'}`}>
-                {selectedClass.type === 'ONLINE' ? <Monitor size={24} /> : <School size={24} />}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-               <div className="space-y-1">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Teacher</p>
-                 <p className="font-bold text-lg flex items-center gap-2 text-white">👨‍🏫 {selectedClass.teacher}</p>
-               </div>
-               <div className="space-y-1">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Room</p>
-                 <p className="font-bold text-lg flex items-center gap-2 text-white">🏢 {selectedClass.room}</p>
-               </div>
-               <div className="space-y-1">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Time</p>
-                 <p className="font-bold text-lg flex items-center gap-2 text-white">📅 {selectedClass.schedule}</p>
-               </div>
-               <div className="space-y-1">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Class Size</p>
-                 <p className="font-bold text-lg flex items-center gap-2 text-white">👥 {selectedClass.studentCount} students</p>
-               </div>
-            </div>
-          </div>
-
-          <div className="p-12 space-y-12">
-            <div>
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8">My Performance Node</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 flex flex-col justify-between">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Grade Average</p>
-                  <p className="text-5xl font-black text-slate-900">{selectedClass.grade}%</p>
-                  <div className="mt-6 w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#3d0413] rounded-full" style={{ width: `${selectedClass.grade}%` }}></div>
-                  </div>
-                </div>
-                <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 flex flex-col justify-between">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Attendance Node</p>
-                  <p className="text-5xl font-black text-emerald-600">{selectedClass.attendance}%</p>
-                  <div className="mt-6 w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${selectedClass.attendance}%` }}></div>
-                  </div>
-                </div>
-                <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 flex flex-col justify-between">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Assignments</p>
-                  <p className="text-4xl font-black text-slate-900">{selectedClass.assignmentsDone?.toUpperCase()}</p>
-                  <div className="mt-6 flex items-center gap-2">
-                    <ChevronRight size={14} className="text-slate-400" />
-                    <span className="text-[10px] font-black uppercase text-[#3d0413]">View All</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mb-8">Quick Repository Access</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {[
-                  { label: 'View Materials', icon: <BookOpen size={20} />, color: 'bg-rose-50 text-[#3d0413]' },
-                  { label: 'View Assignments', icon: <FileText size={20} />, color: 'bg-amber-50 text-amber-700' },
-                  { label: 'View Grades', icon: <BarChart3 size={20} />, color: 'bg-emerald-50 text-emerald-700' },
-                  { label: 'View Schedule', icon: <Calendar size={20} />, color: 'bg-indigo-50 text-indigo-700' },
-                ].map(link => (
-                  <button key={link.label} className="group p-8 rounded-[2rem] border border-slate-100 hover:border-[#3d0413] hover:shadow-xl transition-all duration-500 text-center">
-                    <div className={`w-14 h-14 ${link.color} rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform`}>{link.icon}</div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 block">{link.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderClassList = () => {
-    const filteredClasses = myClasses.filter((c) => {
-      if (!c) return false;
-      return activeTab === 'PHYSICAL' ? c.type === 'PHYSICAL' : c.type === 'ONLINE';
-    });
-
-    return (
-      <div className="space-y-6 sm:space-y-12 animate-in fade-in duration-1000 pb-10 sm:pb-20">
-        <div className="flex flex-col gap-4 sm:gap-8">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-            <div>
-              <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-[#1a202c] uppercase tracking-tighter leading-none mb-2 sm:mb-4">
-                {activeTab === 'PHYSICAL' ? 'MY CLASSES' : 'MY ONLINE CLASSES'}
-              </h2>
-              <p className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] sm:tracking-[0.4em] flex items-center gap-2 sm:gap-3">
-                 <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 bg-[#3d0413] rounded-full animate-pulse"></span>
-                 <span className="hidden sm:inline">{activeTab === 'PHYSICAL' ? 'Physical Node Synchronized • TKNP Active Registry' : 'Virtual Classroom Link Authorized • Active Streaming Hub'}</span>
-                 <span className="sm:hidden">{activeTab === 'PHYSICAL' ? 'Physical Classes' : 'Online Classes'}</span>
-              </p>
-            </div>
-            <div className="flex gap-2 sm:gap-4 p-1.5 sm:p-2 bg-slate-100 rounded-xl sm:rounded-[1.5rem] border border-slate-200 self-start sm:self-auto">
-               <button 
-                 onClick={() => setActiveTab('PHYSICAL')}
-                 className={`px-4 sm:px-8 py-2 sm:py-3 rounded-lg sm:rounded-xl font-black uppercase text-[8px] sm:text-[9px] tracking-wider sm:tracking-widest transition-all ${activeTab === 'PHYSICAL' ? 'bg-white text-[#3d0413] shadow-md' : 'text-slate-400'}`}
-               >
-                 Physical
-               </button>
-               <button 
-                 onClick={() => setActiveTab('ONLINE')}
-                 className={`px-4 sm:px-8 py-2 sm:py-3 rounded-lg sm:rounded-xl font-black uppercase text-[8px] sm:text-[9px] tracking-wider sm:tracking-widest transition-all ${activeTab === 'ONLINE' ? 'bg-[#3d0413] text-white shadow-md' : 'text-slate-400'}`}
-               >
-                 Online
-               </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-10">
-          {filteredClasses.map((cls, idx) => (
-            <div 
-              key={cls.id}
-              className={`bg-white rounded-2xl sm:rounded-[2.5rem] lg:rounded-[3.5rem] border border-slate-100 p-5 sm:p-8 lg:p-10 hover:shadow-[0_50px_80px_-20px_rgba(61,4,19,0.12)] transition-all duration-700 group cursor-pointer active:scale-[0.98] flex flex-col justify-between min-h-[320px] sm:min-h-[380px] lg:aspect-[5/6] ${activeTab === 'ONLINE' ? 'border-l-4 sm:border-l-8 border-l-[#3d0413]' : ''}`}
-              onClick={() => {
-                setSelectedClass(cls);
-                if (activeTab === 'PHYSICAL') {
-                  setActiveView('DETAIL');
-                } else if (activeTab === 'ONLINE') {
-                  setActiveView(cls.isLive ? 'LIVE_JOIN' : 'NOT_LIVE');
-                }
-              }}
-            >
-              <div>
-                <div className="flex justify-between items-start mb-4 sm:mb-8 lg:mb-10">
-                  <span className="text-[9px] sm:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] sm:tracking-[0.3em]">
-                    {String(idx + 1).padStart(2, '0')}. Module
-                  </span>
-                  <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center transition-all ${cls.type === 'ONLINE' ? 'bg-indigo-50 text-indigo-600' : 'bg-rose-50 text-[#3d0413]'} group-hover:scale-110`}>
-                    {cls.type === 'ONLINE' ? <Monitor size={16} className="sm:w-5 sm:h-5" /> : <School size={16} className="sm:w-5 sm:h-5" />}
-                  </div>
-                </div>
-
-                <div className="space-y-3 sm:space-y-6">
-                  <h3 className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tighter leading-tight group-hover:text-[#3d0413] transition-colors">{cls.title}</h3>
-                  <div className="space-y-2 sm:space-y-3">
-                    <div className="flex items-center gap-2 sm:gap-3 text-slate-500 font-bold text-xs sm:text-sm">
-                      <span className="text-sm sm:text-lg">👩‍🏫</span> {cls.teacher}
-                    </div>
-                    {activeTab === 'ONLINE' && (
-                      <div className="flex items-center gap-2 sm:gap-3 text-slate-500 font-bold text-xs sm:text-sm">
-                        <span className="text-sm sm:text-lg">🌐</span> {cls.platform}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 sm:gap-3 text-slate-500 font-bold text-xs sm:text-sm">
-                      <span className="text-sm sm:text-lg">🏢</span> {cls.room}
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 text-slate-500 font-bold text-xs sm:text-sm">
-                      <span className="text-sm sm:text-lg">📅</span> {cls.schedule}
-                    </div>
-                    {activeTab === 'ONLINE' && cls.link && (
-                       <div className="flex items-center gap-2 sm:gap-3 text-[#3d0413] font-black text-[10px] sm:text-xs truncate opacity-40">
-                         <span className="text-sm sm:text-lg">🔗</span> <span className="truncate">{String(cls.link).replace('https://', '')}</span>
-                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 sm:pt-8 border-t border-slate-50 space-y-3 sm:space-y-6 mt-4">
-                {activeTab === 'PHYSICAL' ? (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider sm:tracking-widest">My Grade</span>
-                      <span className="text-lg sm:text-2xl font-black text-slate-900 group-hover:text-[#3d0413] transition-colors">📊 {cls.grade}%</span>
-                    </div>
-                    <button className="w-full py-3 sm:py-5 bg-slate-50 group-hover:bg-[#3d0413] text-slate-400 group-hover:text-white rounded-xl sm:rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-wider sm:tracking-widest transition-all duration-500 flex items-center justify-center gap-2 sm:gap-3">
-                      View Class <ChevronRight size={12} className="sm:w-[14px] sm:h-[14px]" strokeWidth={3} />
-                    </button>
-                  </>
-                ) : (
-                  (() => {
-                    const teacherIsLive = !!(liveSession && liveSession.isLive && liveSession.classId === cls.id);
-                    const nextTime = cls.startTime || cls.schedule;
-                    return (
-                      <div className="space-y-2">
-                        {teacherIsLive ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider">
-                            <Clock size={10} /> Next: {nextTime}
-                          </span>
-                        )}
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleJoinClass(cls); }}
-                          className={`w-full py-3 sm:py-5 rounded-xl sm:rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-wider sm:tracking-widest transition-all duration-500 flex items-center justify-center gap-2 sm:gap-3 shadow-xl active:scale-95 border-b-4 sm:border-b-6 border-black ${
-                            teacherIsLive ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-[#3d0413] text-white hover:bg-black'
-                          }`}
-                        >
-                          {teacherIsLive ? <Play size={14} className="sm:w-4 sm:h-4" fill="currentColor" /> : <Clock size={14} className="sm:w-4 sm:h-4" />}
-                          {teacherIsLive ? 'JOIN CLASS' : `Session: ${nextTime}`}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm(`Remove "${cls.title}" from My Online Classes?`)) {
-                              setMyClasses((prev) => prev.filter((c) => c.id !== cls.id));
-                            }
-                          }}
-                          className="w-full py-2 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-rose-600 transition-colors"
-                        >
-                          Remove from my classes
-                        </button>
-                      </div>
-                    );
-                  })()
-                )}
-              </div>
-            </div>
-          ))}
-          
-          <div 
-            onClick={() => setActiveView('JOIN_LIST')}
-            className="min-h-[200px] sm:min-h-[280px] lg:aspect-[5/6] border-2 sm:border-4 border-dashed border-slate-200 rounded-2xl sm:rounded-[2.5rem] lg:rounded-[3.5rem] flex flex-col items-center justify-center gap-4 sm:gap-6 text-slate-300 hover:text-[#3d0413] hover:border-[#3d0413] hover:bg-slate-50 transition-all cursor-pointer group"
-          >
-             <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full border-2 sm:border-4 border-dashed border-current flex items-center justify-center group-hover:scale-110 group-hover:border-solid transition-all">
-               <Plus size={28} className="sm:w-10 sm:h-10" strokeWidth={3} />
-             </div>
-             <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.4em]">{activeTab === 'PHYSICAL' ? 'Add Class' : 'Join New Class'}</span>
-          </div>
-        </div>
-
-        {activeTab === 'ONLINE' && (
-          <div className="space-y-6">
-            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">AVAILABLE ONLINE CLASSES</h3>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em]">
-              Add a class to see it in My Online Classes. When the lecturer goes live, you can join from the list above. Your profile (name, registry ID, phone, gender) is sent to the lecturer when you join.
-            </p>
-
-            {availableOnlineClasses.length === 0 ? (
-              <div className="bg-white rounded-[3rem] border border-slate-100 p-10 text-center text-slate-400">
-                <p className="text-[10px] font-black uppercase tracking-[0.35em]">No new online classes available right now</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {availableOnlineClasses.map((cls) => (
-                  <div key={cls.id} className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm hover:shadow-xl transition-all flex items-center justify-between gap-6">
-                    <div className="flex items-center gap-6 min-w-0">
-                      <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
-                        <Monitor size={22} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{cls.platform || 'ONLINE'}</p>
-                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight truncate">{cls.title}</h4>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">👨‍🏫 {cls.teacher}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => addClassFromRegistry(cls)}
-                      className="px-6 py-4 bg-[#3d0413] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl border-b-4 border-black active:scale-95 transition-all whitespace-nowrap"
-                    >
-                      Add to My Classes
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'ONLINE' && (
-          <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 flex items-center justify-between">
-             <div className="flex items-center gap-6">
-                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-[#3d0413] shadow-sm"><Calendar size={32}/></div>
+              <div className="space-y-4">
                 <div>
-                   <h4 className="text-xl font-black text-slate-900 uppercase">Institutional Sync</h4>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Next scheduled virtual node at 04:00 PM</p>
+                  <p className="text-[9px] uppercase tracking-[0.35em] text-slate-500 mb-2">Quality</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(['Auto', '720p', '1080p'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setFeedQuality(option)}
+                        className={`rounded-2xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.35em] ${feedQuality === option ? 'bg-[#3d0413] text-white' : 'bg-white/10 text-slate-200'}`}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-             </div>
-             <button className="px-10 py-5 bg-white text-[#3d0413] border border-slate-200 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-sm hover:bg-slate-50 transition-all flex items-center gap-3">
-                <Clock size={18} /> View Schedule
-             </button>
-          </div>
-        )}
-
-        {activeTab === 'ONLINE' && (
-          <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl p-8">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 flex items-center gap-3">
-              <History size={16} /> History Classes
-            </h3>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
-              Recorded sessions – watch or download (saved by your teacher).
-            </p>
-            {recordedSessions.length === 0 ? (
-              <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.25em] py-4">No recorded sessions yet.</p>
-            ) : (
-              <ul className="space-y-4 max-h-[320px] overflow-y-auto pr-1">
-                {recordedSessions.map((rec) => (
-                  <li key={rec.id} className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <span className="text-xs font-black text-slate-800 uppercase tracking-tight line-clamp-2">{rec.title}</span>
-                      <span className="text-[9px] font-black text-slate-400 whitespace-nowrap">{new Date(rec.date).toLocaleDateString()} · {rec.durationSec}s</span>
-                    </div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">{rec.teacherName}</p>
-                    <div className="flex flex-wrap gap-2">
+                <div>
+                  <p className="text-[9px] uppercase tracking-[0.35em] text-slate-500 mb-2">Playback Speed</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[0.5, 0.75, 1, 1.25, 1.5].map((speed) => (
                       <button
+                        key={speed}
                         type="button"
-                        onClick={() => {
-                          const url = URL.createObjectURL(rec.blob);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `${rec.title.replace(/\s+/g, '-')}-${rec.date.slice(0, 10)}.webm`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        }}
-                        className="inline-flex items-center gap-2 px-3 py-2 bg-[#3d0413] text-white rounded-xl text-[9px] font-black uppercase tracking-wider"
+                        onClick={() => setFeedPlaybackSpeed(speed as 1 | 0.5 | 0.75 | 1.25 | 1.5 | 1.75 | 2)}
+                        className={`rounded-2xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.35em] ${feedPlaybackSpeed === speed ? 'bg-[#3d0413] text-white' : 'bg-white/10 text-slate-200'}`}
                       >
-                        <FileDown size={12} /> Download
+                        {speed}x
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const url = URL.createObjectURL(rec.blob);
-                          const w = window.open('', '_blank');
-                          if (w) {
-                            w.document.write(`
-                              <!DOCTYPE html><html><head><title>${rec.title}</title></head>
-                              <body style="margin:0;background:#111;">
-                                <video controls autoplay src="${url}" style="width:100%;max-height:100vh;"></video>
-                                <p style="padding:8px;color:#999;font-size:12px;">${rec.title} · ${rec.teacherName}</p>
-                              </body></html>
-                            `);
-                            w.document.close();
-                          }
-                        }}
-                        className="inline-flex items-center gap-2 px-3 py-2 bg-slate-200 text-slate-800 rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-slate-300"
-                      >
-                        <Presentation size={12} /> Watch
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFeedSubtitlesOn((prev) => !prev)}
+                    className={`rounded-2xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.35em] ${feedSubtitlesOn ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-200'}`}
+                  >
+                    Subtitles: {feedSubtitlesOn ? 'On' : 'Off'}
+                  </button>
+                  <select
+                    value={feedSubtitleLang}
+                    onChange={(event) => setFeedSubtitleLang(event.target.value as 'en' | 'sw')}
+                    className="rounded-2xl bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.35em] text-white"
+                  >
+                    <option value="en">English</option>
+                    <option value="sw">Swahili</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
     );
   };
-
-  React.useEffect(() => {
-    if (!selectedClass && ['DETAIL', 'NOT_LIVE', 'LIVE_JOIN'].includes(activeView)) {
-      setActiveView('LIST');
-    }
-  }, [activeView, selectedClass]);
 
   if (activeView === 'DETAIL') return renderClassDetail();
   if (activeView === 'NOT_LIVE') return renderClassNotLive();
   if (activeView === 'JOIN_LIST') return renderJoinList();
   if (activeView === 'LIVE_JOIN') return renderLiveJoin();
-  return renderClassList();
+  return renderList();
 };
 
 export default StudentClasses;

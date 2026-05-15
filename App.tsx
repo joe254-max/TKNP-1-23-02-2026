@@ -22,7 +22,7 @@ const getLecturerPreview = () => {
 };
 
 const App: React.FC = () => {
-  const MESS_URL = 'http://127.0.0.1:3000';
+  const MESS_URL = import.meta.env.VITE_MESS_URL || '/mess';
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [authLoadingMessage, setAuthLoadingMessage] = useState('Loading portal...');

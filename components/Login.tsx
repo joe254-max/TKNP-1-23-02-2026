@@ -23,9 +23,12 @@ const BACKGROUND_IMAGES = [
   "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=100&w=1600",
   "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&q=100&w=1600",
   "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&q=100&w=1600",
-  "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&q=100&w=1600",
+  "https://images.unsplash.com/photo-1524995997946-a1c2e3150a42f?auto=format&fit=crop&q=100&w=1600",
   "https://images.unsplash.com/photo-1568667256549-094345857637?auto=format&fit=crop&q=100&w=1600"
 ];
+
+const GOOGLE_LOGIN_ENABLED = false;
+const TEMPORARY_EMAIL_AUTH_BYPASS = true;
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot-password' | '2fa'>('login');
@@ -147,7 +150,25 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
       // Handle 'login' and '2fa' modes
       if (mode === 'login' || mode === '2fa') {
-      // Require credentials for login
+      if (mode === 'login' && TEMPORARY_EMAIL_AUTH_BYPASS && !password) {
+        const demoUser: User = {
+          id: `demo-${role.toLowerCase()}-${Date.now()}`,
+          name: role === UserRole.STUDENT ? 'Demo Student' : 'Demo Staff',
+          email: email || 'demo@local',
+          role,
+          department: role === UserRole.STUDENT ? 'General' : 'Academic',
+          admissionNo: role === UserRole.STUDENT ? 'DEMO-000' : undefined,
+        };
+
+        if (rememberMe && demoUser.email) {
+          localStorage.setItem('poly_remembered_email', demoUser.email);
+        }
+
+        onLogin(demoUser, rememberMe);
+        return;
+      }
+
+      // Require credentials for login unless bypass is active
       if (!email || !password) {
         setErrorMessage('Please enter both email and password to log in.');
         return;
@@ -202,6 +223,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   const handleGoogleSignIn = async () => {
+    if (!GOOGLE_LOGIN_ENABLED) {
+      setErrorMessage('Google sign-in is temporarily disabled. Please use email/password login.');
+      return;
+    }
+
     setErrorMessage(null);
     try {
       const supabase = requireSupabaseAuth();
@@ -516,10 +542,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <button
                     type="button"
                     onClick={handleGoogleSignIn}
-                    className="w-full py-4 bg-white hover:bg-slate-50 text-slate-900 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] shadow-sm transition active:scale-95 border border-slate-200 flex items-center justify-center gap-3"
+                    disabled={!GOOGLE_LOGIN_ENABLED}
+                    className="w-full py-4 bg-white disabled:bg-slate-200 disabled:text-slate-500 hover:bg-slate-50 text-slate-900 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] shadow-sm transition active:scale-95 border border-slate-200 flex items-center justify-center gap-3"
                   >
                     <Lock size={16} />
-                    Sign in with Google
+                    {GOOGLE_LOGIN_ENABLED ? 'Sign in with Google' : 'Google login disabled'}
                   </button>
                 </div>
               )}
