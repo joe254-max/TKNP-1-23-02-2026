@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ClassMaterials from './ClassMaterials';
+import ClassAssignments from './ClassAssignments';
+import ClassGrades from './ClassGrades';
+import ClassSchedule from './ClassSchedule';
 import {
   ArrowLeft,
   Bell,
@@ -333,7 +337,7 @@ const getCurrentStudentIdentity = (): { id: string; name: string } => {
 };
 
 const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPreview = false, onNavigateToProfile }) => {
-  const [activeView, setActiveView] = useState<'LIST' | 'DETAIL' | 'NOT_LIVE' | 'JOIN_LIST' | 'LIVE_JOIN'>('LIST');
+  const [activeView, setActiveView] = useState<'LIST' | 'DETAIL' | 'NOT_LIVE' | 'JOIN_LIST' | 'LIVE_JOIN' | 'MATERIALS' | 'ASSIGNMENTS' | 'GRADES' | 'SCHEDULE'>('LIST');
   const [activeTab, setActiveTab] = useState<'PHYSICAL' | 'ONLINE'>(initialTab);
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1262,7 +1266,7 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
               </div>
             </div>
           </div>
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
               { label: 'Grade Average', value: `${selectedClass.grade ?? 0}%`, color: 'bg-[#3d0413]' },
               { label: 'Attendance', value: `${selectedClass.attendance ?? 0}%`, color: 'bg-emerald-500' },
@@ -1278,11 +1282,42 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
             ))}
           </div>
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {['View Materials', 'View Assignments', 'View Grades', 'View Schedule'].map((label) => (
-              <button key={label} type="button" className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900">
-                {label}
-              </button>
-            ))}
+            <button type="button" onClick={() => { setActiveView('MATERIALS'); }} className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-lg font-black">📁 Materials</div>
+                  <div className="text-xs text-slate-400 mt-2">Open →</div>
+                </div>
+                <div className="text-[12px] text-slate-500">Browse files</div>
+              </div>
+            </button>
+            <button type="button" onClick={() => { setActiveView('ASSIGNMENTS'); }} className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-lg font-black">📝 Assignments</div>
+                  <div className="text-xs text-slate-400 mt-2">Open →</div>
+                </div>
+                <div className="text-[12px] text-slate-500">Submit & track</div>
+              </div>
+            </button>
+            <button type="button" onClick={() => { setActiveView('GRADES'); }} className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-lg font-black">📊 Grades</div>
+                  <div className="text-xs text-slate-400 mt-2">Open →</div>
+                </div>
+                <div className="text-[12px] text-slate-500">View report</div>
+              </div>
+            </button>
+            <button type="button" onClick={() => { setActiveView('SCHEDULE'); }} className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-lg font-black">📅 Schedule</div>
+                  <div className="text-xs text-slate-400 mt-2">Open →</div>
+                </div>
+                <div className="text-[12px] text-slate-500">Calendar</div>
+              </div>
+            </button>
           </div>
         </div>
       </div>
@@ -1457,6 +1492,11 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
       </div>
     );
   };
+
+  if (activeView === 'MATERIALS' && selectedClass) return <ClassMaterials selectedClass={selectedClass} onBack={() => setActiveView('DETAIL')} />;
+  if (activeView === 'ASSIGNMENTS' && selectedClass) return <ClassAssignments selectedClass={selectedClass} onBack={() => setActiveView('DETAIL')} />;
+  if (activeView === 'GRADES' && selectedClass) return <ClassGrades selectedClass={selectedClass} onBack={() => setActiveView('DETAIL')} />;
+  if (activeView === 'SCHEDULE' && selectedClass) return <ClassSchedule selectedClass={selectedClass} onBack={() => setActiveView('DETAIL')} />;
 
   if (activeView === 'DETAIL') return renderClassDetail();
   if (activeView === 'NOT_LIVE') return renderClassNotLive();
