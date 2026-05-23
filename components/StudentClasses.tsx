@@ -35,14 +35,11 @@ import {
   X,
   Plus,
 } from 'lucide-react';
-import ClassMaterials from './ClassMaterials';
-import ClassAssignments from './ClassAssignments';
-import ClassGrades from './ClassGrades';
-import ClassSchedule from './ClassSchedule';
 import { addSignal, listenSignals, removeSignal } from '../lib/tknpSupabaseSignals';
 import { getAllRecordings, type RecordedSession } from '../lib/recordingsDb';
 import { getStoredProfile } from '../lib/profile';
 import { fetchAllSchoolClasses, subscribeSchoolClasses } from '../lib/schoolClassService';
+import { supabase } from '../lib/supabaseClient';
 import { LIVE_BRIDGE_CHANNEL, normalizeTitle } from '../lib/liveSessionBridge';
 import type { LiveSessionBridgePayload } from '../lib/liveSessionBridge';
 
@@ -563,6 +560,86 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
     };
   }, []);
 
+  const normalizeLiveSessionRow = (row: any): LiveSession | null => {
+    if (!row || typeof row.title !== 'string') return null;
+    const classId = typeof row.class_id === 'string' && row.class_id.trim() ? row.class_id : String(row.id || '');
+    return {
+      classId,
+      title: row.title,
+      teacher: row.host_name || row.hostName || 'Lecturer',
+      isLive: String(row.status || 'LIVE').toUpperCase() === 'LIVE',
+    };
+  };
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    const syncWithBackend = async () => {
+      const { data, error } = await supabase
+        .from('classnet_live_sessions')
+        .select('*')
+        .eq('status', 'LIVE');
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const session = data.map(normalizeLiveSessionRow).find((item) => item !== null);
+        if (session) {
+          setLiveSession(session);
+          setMyClasses((prev) =>
+            prev.map((cls) => ({
+              ...cls,
+              isLive: session.isLive && (cls.id === session.classId || normalizeTitle(cls.title).includes(normalizeTitle(session.title).slice(0, 6))),
+            }))
+          );
+        }
+      }
+    };
+
+    void syncWithBackend();
+
+    const channel = supabase
+      .channel('student-live-session-sync')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'classnet_live_sessions' }, (payload) => {
+        const session = normalizeLiveSessionRow(payload.new);
+        if (session?.isLive) {
+          setLiveSession(session);
+          setMyClasses((prev) =>
+            prev.map((cls) => ({
+              ...cls,
+              isLive: session.isLive && (cls.id === session.classId || normalizeTitle(cls.title).includes(normalizeTitle(session.title).slice(0, 6))),
+            }))
+          );
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'classnet_live_sessions' }, (payload) => {
+        const session = normalizeLiveSessionRow(payload.new);
+        if (session?.isLive) {
+          setLiveSession(session);
+          setMyClasses((prev) =>
+            prev.map((cls) => ({
+              ...cls,
+              isLive: session.isLive && (cls.id === session.classId || normalizeTitle(cls.title).includes(normalizeTitle(session.title).slice(0, 6))),
+            }))
+          );
+        } else if (payload.old) {
+          const oldClassId = String(payload.old.class_id || payload.old.id || '');
+          setLiveSession((current) => (current?.classId === oldClassId ? null : current));
+          setMyClasses((prev) =>
+            prev.map((cls) => ({
+              ...cls,
+              isLive: false,
+            }))
+          );
+        }
+      })
+      .subscribe();
+
+    return () => {
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     let channel: BroadcastChannel | null = null;
     try {
@@ -766,7 +843,7 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
 
   useEffect(() => {
     const classId = selectedClass?.id ?? null;
-    const sessionIsLive = liveSession?.isLive === true && liveSession?.classId === classId;
+    const sessionIsLive = selectedClass ? liveSessionActiveFor(selectedClass) : false;
 
     if (!classId || !selectedClass || !sessionIsLive) {
       if (liveClassId !== null) {
@@ -785,8 +862,7 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
     return () => {
       stopTeacherReceiver();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClass?.id, liveSession?.classId, liveSession?.isLive]);
+  }, [selectedClass, liveSession]);
 
   const handleEnrollClass = (cls: ClassItem, profileOverride?: StudentProfile) => {
     const activeProfile = profileOverride ?? profile;
@@ -822,8 +898,11 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
   };
 
   const handleJoinClass = (cls: ClassItem) => {
-    if (liveSessionActiveFor(cls)) {
-      setSelectedClass(cls);
+    if (liveSessionActiveFor(cls) && liveSession) {
+      const selected = liveSession.classId && liveSession.classId !== cls.id
+        ? { ...cls, id: liveSession.classId }
+        : cls;
+      setSelectedClass(selected);
       setActiveView('LIVE_JOIN');
       return;
     }

@@ -24,12 +24,15 @@ create table if not exists public.classnet_live_sessions (
   status text not null default 'LIVE',
   invite_code text not null,
   passkey text not null,
+  class_id text,
+  class_title text,
   started_at timestamptz default now(),
   ended_at timestamptz
 );
 
 create index if not exists idx_classnet_live_sessions_status on public.classnet_live_sessions(status);
 create index if not exists idx_classnet_live_sessions_host on public.classnet_live_sessions(host_id);
+create index if not exists idx_classnet_live_sessions_class on public.classnet_live_sessions(class_id);
 
 -- GUEST REQUESTS
 create table if not exists public.classnet_live_guest_requests (

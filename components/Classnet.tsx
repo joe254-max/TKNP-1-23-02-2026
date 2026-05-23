@@ -2884,6 +2884,8 @@ const GoLiveModal: React.FC<{
                 const code = `L${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
                 const key = Math.random().toString(36).slice(2, 8).toUpperCase();
                 const startedAt = new Date().toISOString();
+                const sessionTitle = (title || description || `${type} Live`).trim();
+                const fallbackLiveId = `live-${Date.now()}`;
 
                 const resolveClassId = (sessionTitle: string, fallbackId: string): string => {
                   try {
@@ -2900,18 +2902,23 @@ const GoLiveModal: React.FC<{
                   return fallbackId;
                 };
 
+                const classId = resolveClassId(sessionTitle, fallbackLiveId);
+                const classTitle = normalizeTitle(sessionTitle);
+
                 if (supabase) {
                   const { data, error } = await supabase
                     .from('classnet_live_sessions')
                     .insert({
                       host_id: (window as any)?.poly_current_user_id || userName.toLowerCase(),
                       host_name: userName,
-                      title: (title || description || `${type} Live`).trim(),
+                      title: sessionTitle,
                       type,
                       audience: aud,
                       status: 'LIVE',
                       invite_code: code,
                       passkey: key,
+                      class_id: classId,
+                      class_title: classTitle,
                       started_at: startedAt,
                     })
                     .select('*')
@@ -2931,8 +2938,8 @@ const GoLiveModal: React.FC<{
                       passkey: data.passkey,
                     };
                     broadcastLiveSession({
-                      classId: resolveClassId(session.title, session.id),
-                      classTitle: normalizeTitle(session.title),
+                      classId,
+                      classTitle,
                       title: session.title,
                       teacher: session.hostName,
                       isLive: true,
@@ -2947,7 +2954,6 @@ const GoLiveModal: React.FC<{
                 }
 
                 // fallback (no supabase configured)
-                const sessionTitle = (title || description || `${type} Live`).trim();
                 const session: LiveSession = {
                   id: `live-${Date.now()}`,
                   title: sessionTitle,
@@ -3101,6 +3107,21 @@ const LiveTheater: React.FC<{
     }
   };
 
+  const endLiveSession = async () => {
+    if (supabase && session?.id) {
+      try {
+        await supabase
+          .from('classnet_live_sessions')
+          .update({ status: 'ENDED', ended_at: new Date().toISOString() })
+          .eq('id', session.id);
+      } catch {
+        // ignore backend cleanup failures
+      }
+    }
+    clearLiveSession();
+    onExit();
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3">
@@ -3161,7 +3182,7 @@ const LiveTheater: React.FC<{
           <button type="button" onClick={() => addNotif('Reported (mock).')} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black active:scale-95 transition">
             Report
           </button>
-          <button type="button" onClick={() => { clearLiveSession(); onExit(); }} className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black active:scale-95 transition">
+          <button type="button" onClick={() => { void endLiveSession(); }} className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black active:scale-95 transition">
             Exit
           </button>
         </div>

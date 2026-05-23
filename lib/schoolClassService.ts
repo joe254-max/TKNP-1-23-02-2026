@@ -151,7 +151,7 @@ export async function upsertSchoolStudents(records: SchoolStudentRecord[]): Prom
     }));
     const { error } = await supabase
       .from('tknp_school_class_students')
-      .upsert(payload, { onConflict: ['class_key', 'adm_no'] });
+      .upsert(payload, { onConflict: 'class_key,adm_no' });
     if (error) throw error;
   } catch (error) {
     console.warn('upsertSchoolStudents failed', error);

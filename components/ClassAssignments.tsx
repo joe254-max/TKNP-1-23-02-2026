@@ -127,7 +127,25 @@ const ClassAssignments: React.FC<Props> = ({ selectedClass, onBack }) => {
       try {
         const remote = await fetchClassAssignments(selectedClass.id);
         if (active && remote.length > 0) {
-          setAssignments(remote);
+          setAssignments(
+            remote.map((assignment) => ({
+              id: assignment.id,
+              title: assignment.title,
+              description: assignment.description,
+              dueDate: assignment.dueDate,
+              status: ['GRADED', 'SUBMITTED', 'PENDING', 'OVERDUE'].includes(
+                assignment.status as AssignmentStatus,
+              )
+                ? (assignment.status as AssignmentStatus)
+                : 'PENDING',
+              grade: assignment.grade,
+              maxGrade: assignment.maxGrade,
+              feedback: assignment.feedback,
+              submittedFile: assignment.submittedFile,
+              submittedDate: assignment.submittedDate,
+              weight: assignment.weight,
+            })),
+          );
         }
       } catch {
         if (active) setLoadError(true);

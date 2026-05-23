@@ -72,7 +72,16 @@ const ClassGrades: React.FC<Props> = ({ selectedClass, onBack }) => {
         const remote = await fetchClassGrades(selectedClass.id);
         if (!active) return;
 
-        setGradeEntries(remote.gradeEntries ?? GRADE_ENTRIES);
+        setGradeEntries(
+          (remote.gradeEntries ?? []).map((entry) => ({
+            label: entry.title,
+            date: entry.date,
+            score: entry.score,
+            max: entry.maxScore,
+            weight: entry.weight,
+            type: entry.entryType as GradeEntry['type'],
+          })),
+        );
         setScheme(remote.scheme ?? SCHEME);
         setOverallGrade(remote.overall ?? selectedClass.grade ?? 82);
         setAttendance(remote.attendance ?? selectedClass.attendance ?? 90);

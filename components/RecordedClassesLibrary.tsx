@@ -35,7 +35,7 @@ const RecordedClassesLibrary: React.FC = () => {
     setPlaying(null);
   };
 
-  const handleDownlcommoad = (rec: RecordedSession) => {
+  const handleDownload = (rec: RecordedSession) => {
     const url = URL.createObjectURL(rec.blob);
     const a = document.createElement('a');
     a.href = url;

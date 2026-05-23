@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Calendar, Clock, MapPin, BookOpen, AlertCircle } from 'lucide-react';
-import { fetchClassSchedule, type ClassScheduleSession, type UpcomingEvent as BackendUpcomingEvent } from '../lib/classContentService';
+import { fetchClassSchedule, type ClassScheduleEvent, type ClassScheduleSession } from '../lib/classContentService';
 
 interface ClassItem {
   id: string;
@@ -95,8 +95,35 @@ const ClassSchedule: React.FC<Props> = ({ selectedClass, onBack }) => {
         const remote = await fetchClassSchedule(selectedClass.id);
         if (!active) return;
 
-        setSessions(remote.weeklySessions ?? WEEKLY_SESSIONS);
-        setUpcoming(remote.upcomingEvents ?? UPCOMING);
+        setSessions(
+          remote.weeklySessions.length > 0
+            ? remote.weeklySessions.map((session) => ({
+                id: session.id,
+                day: session.day,
+                time: session.startTime,
+                endTime: session.endTime,
+                type: session.sessionType as SessionType,
+                room: session.room,
+                topic: session.topic,
+                week: session.week,
+              }))
+            : WEEKLY_SESSIONS,
+        );
+        setUpcoming(
+          remote.upcomingEvents.length > 0
+            ? remote.upcomingEvents.map((event) => {
+                const [month, day] = event.date.split(' ');
+                return {
+                  date: event.date,
+                  month: month?.toUpperCase() ?? 'TBD',
+                  day: day ?? '00',
+                  label: event.label,
+                  type: event.eventType as UpcomingEvent['type'],
+                  note: event.note,
+                };
+              })
+            : UPCOMING,
+        );
       } catch {
         if (active) setLoadError(true);
       } finally {
