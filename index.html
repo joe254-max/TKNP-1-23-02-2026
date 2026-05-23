@@ -52,6 +52,26 @@
 </head>
 <body class="bg-white text-slate-900">
   <div id="root"></div>
+  <div id="global-error" aria-hidden="true" style="display:none; position:fixed; inset:16px; background:rgba(11,7,17,0.95); color:#ffdede; padding:16px; border-radius:12px; z-index:9999; font-family:monospace; font-size:13px; overflow:auto; white-space:pre-wrap;">JS Error</div>
+  <script>
+    (function(){
+      const overlay = document.getElementById('global-error');
+      function show(msg){
+        if(!overlay) return;
+        overlay.style.display = 'block';
+        overlay.textContent = String(msg);
+      }
+      window.addEventListener('error', function(e){
+        try{ show('Uncaught error:\n'+(e && e.error && e.error.stack ? e.error.stack : e.message || String(e)) ); }catch{}
+      });
+      window.addEventListener('unhandledrejection', function(e){
+        try{ show('Unhandled promise rejection:\n'+(e && e.reason && e.reason.stack ? e.reason.stack : String(e.reason))); }catch{}
+      });
+      // expose helper for manual debug
+      window.__showGlobalError = show;
+      console.log('Global error overlay installed');
+    })();
+  </script>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>

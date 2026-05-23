@@ -7,6 +7,7 @@ import ResourceGrid from './components/ResourceGrid.tsx';
 import Hero from './components/Hero.tsx';
 import StaffDashboardHome from './components/Dashboard.tsx';
 import Login from './components/Login.tsx';
+import MyClassesDashboard from './components/MyClassesDashboard.tsx';
 import StudentClasses from './components/StudentClasses.tsx';
 import Profile from './components/Profile.tsx';
 import RecordedClassesLibrary from './components/RecordedClassesLibrary.tsx';
@@ -415,7 +416,7 @@ const App: React.FC = () => {
           )}
 
           {view === 'classes' && user.role === UserRole.STUDENT && (
-            <StudentClasses initialTab={studentDashTab} onNavigateToProfile={() => setView('profile')} />
+            <MyClassesDashboard user={user} onNavigateToProfile={() => setView('profile')} />
           )}
 
           {view === 'profile' && (
