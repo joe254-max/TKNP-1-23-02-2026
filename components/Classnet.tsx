@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from '../types';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { supabase } from '../lib/supabaseClient';
+import { broadcastLiveSession, clearLiveSession, normalizeTitle } from '../lib/liveSessionBridge';
 import {
   Bell,
   Bookmark,
@@ -2884,6 +2885,21 @@ const GoLiveModal: React.FC<{
                 const key = Math.random().toString(36).slice(2, 8).toUpperCase();
                 const startedAt = new Date().toISOString();
 
+                const resolveClassId = (sessionTitle: string, fallbackId: string): string => {
+                  try {
+                    const raw = localStorage.getItem('poly_my_classes');
+                    if (raw) {
+                      const classes = JSON.parse(raw) as Array<{ id: string; title: string; type: string }>;
+                      const norm = normalizeTitle(sessionTitle);
+                      const match = classes.find(
+                        (c) => c.type === 'ONLINE' && normalizeTitle(c.title).includes(norm.slice(0, 6))
+                      );
+                      if (match) return match.id;
+                    }
+                  } catch { /* ignore */ }
+                  return fallbackId;
+                };
+
                 if (supabase) {
                   const { data, error } = await supabase
                     .from('classnet_live_sessions')
@@ -2914,6 +2930,15 @@ const GoLiveModal: React.FC<{
                       inviteCode: data.invite_code,
                       passkey: data.passkey,
                     };
+                    broadcastLiveSession({
+                      classId: resolveClassId(session.title, session.id),
+                      classTitle: normalizeTitle(session.title),
+                      title: session.title,
+                      teacher: session.hostName,
+                      isLive: true,
+                      startedAt: session.startedAt,
+                      inviteCode: session.inviteCode,
+                    });
                     addNotif('You are now live.');
                     onGoLive(session);
                     onClose();
@@ -2922,9 +2947,10 @@ const GoLiveModal: React.FC<{
                 }
 
                 // fallback (no supabase configured)
+                const sessionTitle = (title || description || `${type} Live`).trim();
                 const session: LiveSession = {
                   id: `live-${Date.now()}`,
-                  title: (title || description || `${type} Live`).trim(),
+                  title: sessionTitle,
                   hostName: userName,
                   type,
                   audience: aud,
@@ -2934,6 +2960,15 @@ const GoLiveModal: React.FC<{
                   inviteCode: code,
                   passkey: key,
                 };
+                broadcastLiveSession({
+                  classId: resolveClassId(sessionTitle, session.id),
+                  classTitle: normalizeTitle(sessionTitle),
+                  title: sessionTitle,
+                  teacher: userName,
+                  isLive: true,
+                  startedAt,
+                  inviteCode: code,
+                });
                 addNotif('You are now live.');
                 onGoLive(session);
                 onClose();
@@ -3126,7 +3161,7 @@ const LiveTheater: React.FC<{
           <button type="button" onClick={() => addNotif('Reported (mock).')} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black active:scale-95 transition">
             Report
           </button>
-          <button type="button" onClick={onExit} className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black active:scale-95 transition">
+          <button type="button" onClick={() => { clearLiveSession(); onExit(); }} className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black active:scale-95 transition">
             Exit
           </button>
         </div>

@@ -317,3 +317,144 @@ begin
     execute 'alter publication supabase_realtime add table public.tknp_signals';
   end if;
 end $$;
+
+-- Class materials, assignments, grades, and schedule support for TKNP portal.
+create table if not exists public.class_materials (
+  id uuid primary key default gen_random_uuid(),
+  class_id text not null,
+  week integer not null,
+  name text not null,
+  type text not null,
+  size text not null,
+  uploaded_by text not null,
+  uploaded_at timestamptz default now(),
+  file_url text
+);
+
+create index if not exists idx_class_materials_class_week on public.class_materials(class_id, week);
+
+alter table public.class_materials enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where policyname = 'class_materials_all_authenticated') then
+    create policy class_materials_all_authenticated on public.class_materials
+      for all using (true) with check (true);
+  end if;
+end $$;
+
+create table if not exists public.class_assignments (
+  id uuid primary key default gen_random_uuid(),
+  class_id text not null,
+  title text not null,
+  description text not null,
+  due_date date not null,
+  status text not null default 'PENDING',
+  weight text not null,
+  max_grade integer not null default 100,
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_class_assignments_class_due_date on public.class_assignments(class_id, due_date);
+
+alter table public.class_assignments enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where policyname = 'class_assignments_all_authenticated') then
+    create policy class_assignments_all_authenticated on public.class_assignments
+      for all using (true) with check (true);
+  end if;
+end $$;
+
+create table if not exists public.assignment_submissions (
+  id uuid primary key default gen_random_uuid(),
+  assignment_id uuid not null references public.class_assignments(id) on delete cascade,
+  student_id text not null,
+  file_name text not null,
+  submitted_at timestamptz default now(),
+  status text not null default 'SUBMITTED',
+  grade integer,
+  feedback text
+);
+
+create index if not exists idx_assignment_submissions_assignment_student on public.assignment_submissions(assignment_id, student_id);
+
+alter table public.assignment_submissions enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where policyname = 'assignment_submissions_all_authenticated') then
+    create policy assignment_submissions_all_authenticated on public.assignment_submissions
+      for all using (true) with check (true);
+  end if;
+end $$;
+
+create table if not exists public.class_grade_entries (
+  id uuid primary key default gen_random_uuid(),
+  class_id text not null,
+  title text not null,
+  entry_type text not null,
+  date date not null,
+  score integer not null,
+  max_score integer not null,
+  weight text not null
+);
+
+create index if not exists idx_class_grade_entries_class_date on public.class_grade_entries(class_id, date);
+
+alter table public.class_grade_entries enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where policyname = 'class_grade_entries_all_authenticated') then
+    create policy class_grade_entries_all_authenticated on public.class_grade_entries
+      for all using (true) with check (true);
+  end if;
+end $$;
+
+create table if not exists public.class_schedule (
+  id uuid primary key default gen_random_uuid(),
+  class_id text not null,
+  day text not null,
+  start_time text not null,
+  end_time text not null,
+  session_type text not null,
+  room text not null,
+  topic text not null,
+  week integer not null,
+  note text
+);
+
+create index if not exists idx_class_schedule_class_week on public.class_schedule(class_id, week);
+
+alter table public.class_schedule enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where policyname = 'class_schedule_all_authenticated') then
+    create policy class_schedule_all_authenticated on public.class_schedule
+      for all using (true) with check (true);
+  end if;
+end $$;
+
+create table if not exists public.class_schedule_events (
+  id uuid primary key default gen_random_uuid(),
+  class_id text not null,
+  date date not null,
+  label text not null,
+  event_type text not null,
+  note text
+);
+
+create index if not exists idx_class_schedule_events_class_date on public.class_schedule_events(class_id, date);
+
+alter table public.class_schedule_events enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where policyname = 'class_schedule_events_all_authenticated') then
+    create policy class_schedule_events_all_authenticated on public.class_schedule_events
+      for all using (true) with check (true);
+  end if;
+end $$;

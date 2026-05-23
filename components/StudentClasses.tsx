@@ -31,10 +31,16 @@ import {
   X,
   Plus,
 } from 'lucide-react';
+import ClassMaterials from './ClassMaterials';
+import ClassAssignments from './ClassAssignments';
+import ClassGrades from './ClassGrades';
+import ClassSchedule from './ClassSchedule';
 import { addSignal, listenSignals, removeSignal } from '../lib/tknpSupabaseSignals';
 import { getAllRecordings, type RecordedSession } from '../lib/recordingsDb';
 import { getStoredProfile } from '../lib/profile';
 import { fetchAllSchoolClasses, subscribeSchoolClasses } from '../lib/schoolClassService';
+import { LIVE_BRIDGE_CHANNEL, normalizeTitle } from '../lib/liveSessionBridge';
+import type { LiveSessionBridgePayload } from '../lib/liveSessionBridge';
 
 interface ClassItem {
   id: string;
@@ -333,7 +339,7 @@ const getCurrentStudentIdentity = (): { id: string; name: string } => {
 };
 
 const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPreview = false, onNavigateToProfile }) => {
-  const [activeView, setActiveView] = useState<'LIST' | 'DETAIL' | 'NOT_LIVE' | 'JOIN_LIST' | 'LIVE_JOIN'>('LIST');
+  const [activeView, setActiveView] = useState<'LIST' | 'DETAIL' | 'NOT_LIVE' | 'JOIN_LIST' | 'LIVE_JOIN' | 'MATERIALS' | 'ASSIGNMENTS' | 'GRADES' | 'SCHEDULE'>('LIST');
   const [activeTab, setActiveTab] = useState<'PHYSICAL' | 'ONLINE'>(initialTab);
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -364,6 +370,7 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
   const [feedSubtitleLang, setFeedSubtitleLang] = useState<'en' | 'sw'>('en');
   const [feedAudioTrack, setFeedAudioTrack] = useState<'default' | 'en' | 'sw'>('default');
   const [feedStatsOpen, setFeedStatsOpen] = useState(false);
+  const [liveClassId, setLiveClassId] = useState<string | null>(null);
 
   const teacherVideoRef = useRef<HTMLVideoElement | null>(null);
   const teacherPiPRef = useRef<HTMLVideoElement | null>(null);
@@ -420,29 +427,40 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
   );
 
   const joinableClasses = useMemo(() => {
-    if (!profileComplete) return [];
     return getAllClassSources.filter((cls) => {
       if (cls.type !== activeTab) return false;
       if (enrolledIds.has(cls.id)) return false;
       const classDept = normalizeDepartment(cls.department);
       const classCode = normalizeClassCode(cls.code || cls.title);
       const searchMatch = searchQuery.trim().length === 0 || [cls.title, cls.teacher, cls.department].some((value) => value.toLowerCase().includes(searchQuery.toLowerCase()));
-      return searchMatch && deptMatch(classDept, profileDept) && codeMatch(classCode, profileCode);
+      const matchesDept = !profileDept || deptMatch(classDept, profileDept);
+      const matchesCode = !profileCode || codeMatch(classCode, profileCode);
+      return searchMatch && matchesDept && matchesCode;
     });
   }, [activeTab, enrolledIds, getAllClassSources, profileComplete, profileCode, profileDept, searchQuery]);
 
   const availableOnlineClasses = useMemo(() => {
-    if (!profileComplete) return [];
     return getAllClassSources.filter((cls) => {
       if (cls.type !== 'ONLINE') return false;
       if (enrolledIds.has(cls.id)) return false;
       const classDept = normalizeDepartment(cls.department);
       const classCode = normalizeClassCode(cls.code || cls.title);
-      return deptMatch(classDept, profileDept) && codeMatch(classCode, profileCode);
+      const matchesDept = !profileDept || deptMatch(classDept, profileDept);
+      const matchesCode = !profileCode || codeMatch(classCode, profileCode);
+      return matchesDept && matchesCode;
     });
   }, [enrolledIds, getAllClassSources, profileComplete, profileCode, profileDept]);
 
-  const liveSessionActiveFor = (cls: ClassItem) => liveSession?.isLive && liveSession.classId === cls.id;
+  const liveSessionActiveFor = (cls: ClassItem) => {
+    if (!liveSession?.isLive) return false;
+    if (liveSession.classId === cls.id) return true;
+    if (liveSession.title && cls.title) {
+      const sessionNorm = normalizeTitle(liveSession.title);
+      const classNorm = normalizeTitle(cls.title);
+      return sessionNorm.length >= 4 && classNorm.includes(sessionNorm.slice(0, 6));
+    }
+    return false;
+  };
 
   const shouldShowEmptyState = filteredMyClasses.length === 0 && myClassesSaved;
 
@@ -451,7 +469,18 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
   };
 
   const loadLiveSession = () => {
-    setLiveSession(loadLiveSessionFromStorage());
+    const session = loadLiveSessionFromStorage();
+    setLiveSession(session);
+    setMyClasses((prev) =>
+      prev.map((cls) => ({
+        ...cls,
+        isLive: Boolean(
+          session &&
+          session.isLive &&
+          (cls.id === session.classId || normalizeTitle(cls.title).includes(normalizeTitle(session.title).slice(0, 6)))
+        ),
+      }))
+    );
   };
 
   useEffect(() => {
@@ -531,6 +560,38 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
   }, []);
 
   useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel(LIVE_BRIDGE_CHANNEL);
+      channel.onmessage = (event: MessageEvent<LiveSessionBridgePayload>) => {
+        const payload = event.data;
+        if (!payload) return;
+
+        setLiveSession({
+          classId: payload.classId,
+          title: payload.title,
+          teacher: payload.teacher,
+          isLive: payload.isLive,
+        });
+
+        setMyClasses((prev) =>
+          prev.map((cls) => ({
+            ...cls,
+            isLive: payload.isLive && (
+              cls.id === payload.classId || normalizeTitle(cls.title).includes(payload.classTitle.slice(0, 6))
+            ),
+          }))
+        );
+      };
+    } catch {
+      channel = null;
+    }
+    return () => {
+      channel?.close();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!studentStream || !studentVideoRef.current) return;
     studentVideoRef.current.srcObject = studentStream;
     studentVideoRef.current.play().catch(() => {});
@@ -568,6 +629,7 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
   }, []);
 
   const stopTeacherReceiver = () => {
+    setLiveClassId(null);
     signalUnsubscribeRef.current?.();
     signalUnsubscribeRef.current = null;
     try {
@@ -699,26 +761,32 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
   };
 
   useEffect(() => {
-    if (activeView !== 'LIVE_JOIN' || !selectedClass) return undefined;
-    if (!liveSessionActiveFor(selectedClass)) {
-      stopTeacherReceiver();
+    const classId = selectedClass?.id ?? null;
+    const sessionIsLive = liveSession?.isLive === true && liveSession?.classId === classId;
+
+    if (!classId || !selectedClass || !sessionIsLive) {
+      if (liveClassId !== null) {
+        stopTeacherReceiver();
+      }
       return undefined;
     }
+
+    if (liveClassId === classId && pcRef.current !== null) {
+      return undefined;
+    }
+
+    setLiveClassId(classId);
     void connectToLiveClass(selectedClass);
+
     return () => {
       stopTeacherReceiver();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, selectedClass?.id, liveSession?.classId, liveSession?.isLive]);
+  }, [selectedClass?.id, liveSession?.classId, liveSession?.isLive]);
 
   const handleEnrollClass = (cls: ClassItem, profileOverride?: StudentProfile) => {
     const activeProfile = profileOverride ?? profile;
-    const profileReady = isProfileCompleteFor(activeProfile);
-    if (!profileReady) {
-      setPendingEnrollment(cls);
-      setProfileModalOpen(true);
-      return;
-    }
+    // Enrollment is allowed even when the local profile is incomplete.
 
     if (enrolledIds.has(cls.id)) return;
     const enrolled: ClassItem = {
@@ -876,6 +944,37 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
           </div>
         </div>
 
+        {activeTab === 'ONLINE' && liveSession?.isLive && (
+          <div className="mb-8 rounded-[2.5rem] border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-700">Live Right Now</p>
+                <h2 className="text-2xl font-black text-slate-900 mt-2">{liveSession.title}</h2>
+                <p className="text-sm text-slate-600">{liveSession.teacher} is live now.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const matchedClass = myClasses.find((cls) => liveSessionActiveFor(cls)) ?? {
+                    id: liveSession.classId || 'live-temp',
+                    title: liveSession.title,
+                    teacher: liveSession.teacher,
+                    room: 'Online',
+                    schedule: 'Live now',
+                    type: 'ONLINE' as const,
+                    studentCount: 0,
+                    department: 'GENERAL',
+                  };
+                  setSelectedClass(matchedClass);
+                  setActiveView('LIVE_JOIN');
+                }}
+                className="rounded-2xl bg-emerald-600 px-6 py-4 text-[10px] font-black uppercase tracking-[0.35em] text-white hover:bg-emerald-700 transition"
+              >
+                Join Live Class
+              </button>
+            </div>
+          </div>
+        )}
         {hasNoClasses ? renderEmptyState() : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {filteredMyClasses.map((cls, index) => (
@@ -1278,11 +1377,34 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
             ))}
           </div>
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {['View Materials', 'View Assignments', 'View Grades', 'View Schedule'].map((label) => (
-              <button key={label} type="button" className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900">
-                {label}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => setActiveView('MATERIALS')}
+              className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900"
+            >
+              View Materials
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView('ASSIGNMENTS')}
+              className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900"
+            >
+              View Assignments
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView('GRADES')}
+              className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900"
+            >
+              View Grades
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView('SCHEDULE')}
+              className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-left text-sm font-black uppercase tracking-[0.35em] text-slate-900"
+            >
+              View Schedule
+            </button>
           </div>
         </div>
       </div>
@@ -1458,6 +1580,10 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
     );
   };
 
+  if (activeView === 'MATERIALS' && selectedClass) return <ClassMaterials selectedClass={selectedClass} onBack={() => setActiveView('DETAIL')} />;
+  if (activeView === 'ASSIGNMENTS' && selectedClass) return <ClassAssignments selectedClass={selectedClass} onBack={() => setActiveView('DETAIL')} />;
+  if (activeView === 'GRADES' && selectedClass) return <ClassGrades selectedClass={selectedClass} onBack={() => setActiveView('DETAIL')} />;
+  if (activeView === 'SCHEDULE' && selectedClass) return <ClassSchedule selectedClass={selectedClass} onBack={() => setActiveView('DETAIL')} />;
   if (activeView === 'DETAIL') return renderClassDetail();
   if (activeView === 'NOT_LIVE') return renderClassNotLive();
   if (activeView === 'JOIN_LIST') return renderJoinList();

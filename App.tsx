@@ -44,8 +44,10 @@ const App: React.FC = () => {
     try {
       await primeProfileCache(portalUser.id, portalUser.name);
       const cachedProfile = getStoredProfile(portalUser.id);
-      const profileIsComplete = isProfileComplete(cachedProfile, portalUser.role);
-      setMustCompleteProfile(!profileIsComplete);
+      // Do not force completion gate — allow users to view classes without completing profile
+      // We still prime cache for convenience but never block navigation with a profile gate.
+      // const profileIsComplete = isProfileComplete(cachedProfile, portalUser.role);
+      setMustCompleteProfile(false);
     } finally {
       setProfileCheckPending(false);
     }
