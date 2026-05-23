@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ClassMaterials from './ClassMaterials';
+import ClassAssignments from './ClassAssignments';
+import ClassGrades from './ClassGrades';
+import ClassSchedule from './ClassSchedule';
 import {
   ArrowLeft,
   Bell,
@@ -1361,7 +1365,7 @@ const StudentClasses: React.FC<Props> = ({ initialTab = 'PHYSICAL', isLecturerPr
               </div>
             </div>
           </div>
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
               { label: 'Grade Average', value: `${selectedClass.grade ?? 0}%`, color: 'bg-[#3d0413]' },
               { label: 'Attendance', value: `${selectedClass.attendance ?? 0}%`, color: 'bg-emerald-500' },
