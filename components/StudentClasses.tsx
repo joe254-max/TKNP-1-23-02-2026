@@ -517,48 +517,7 @@ const StudentClasses: React.FC<{
 
       teacherSignalRef.current = null;
 
-      // listen for Firestore signals for this class
-      const unsub = listenSignals(selectedClass.id, async (snapshot: any) => {
-        for (const change of snapshot.docChanges()) {
-          if (change.type !== 'added') continue;
-          const doc = change.doc;
-          const msg = doc.data();
-          if (!msg) continue;
-          if (msg.role !== 'teacher') {
-            try { await removeSignal(selectedClass.id, doc.id); } catch {}
-            continue;
-          }
-          if (msg.to && msg.to !== identity.id) continue;
-          try {
-            if (msg.type === 'offer' && msg.sdp) {
-              teacherIdRef.current = msg.from as string;
-              await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              try { await addSignal(selectedClass.id, { type: 'answer', classId: selectedClass.id, from: identity.id, role: 'student', to: msg.from, sdp: pc.localDescription ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp } : null }); } catch {}
-              // flush pending candidates
-              const teacherId = msg.from as string;
-              for (const c of pendingCandidatesRef.current) {
-                try { await addSignal(selectedClass.id, { type: 'candidate', classId: selectedClass.id, from: identity.id, role: 'student', to: teacherId, candidate: c }); } catch {}
-              }
-              pendingCandidatesRef.current = [];
-            } else if (msg.type === 'candidate' && msg.candidate) {
-              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-            } else if (msg.type === 'end') {
-              setTeacherFeedStatus('OFFLINE');
-              stopTeacherReceiver();
-            }
-          } catch {
-            setTeacherFeedStatus('ERROR');
-          }
-          try { await removeSignal(selectedClass.id, doc.id); } catch {}
-        }
-      });
-      teacherFirestoreUnsubRef.current = unsub;
-
-      // ask teacher for an offer
-      try { addSignal(selectedClass.id, { type: 'join', classId: selectedClass.id, from: identity.id, role: 'student', name: identity.name }); } catch {}
-
+    // create peer connection first so the Firestore listener can safely reference it
     const pc = new RTCPeerConnection(RTC_CONFIG);
     teacherPeerRef.current = pc;
 
@@ -568,7 +527,7 @@ const StudentClasses: React.FC<{
       setTeacherFeedStatus('LIVE');
       if (isLecturerPreview) {
         if (teacherVideoRef.current) teacherVideoRef.current.srcObject = null;
-        if (teacherPiPRef.current) teacherPiPRef.current.srcObject = null;
+        if (teacherPiPRef.current) teacherPiPRef.current && (teacherPiPRef.current.srcObject = null);
         return;
       }
       const slot = teacherVideoCountRef.current === 0 ? 'camera' : 'screen';
@@ -600,6 +559,48 @@ const StudentClasses: React.FC<{
         setTeacherFeedStatus('ERROR');
       }
     };
+
+    // listen for Firestore signals for this class
+    const unsub = listenSignals(selectedClass.id, async (snapshot: any) => {
+      for (const change of snapshot.docChanges()) {
+        if (change.type !== 'added') continue;
+        const doc = change.doc;
+        const msg = doc.data();
+        if (!msg) continue;
+        if (msg.role !== 'teacher') {
+          try { await removeSignal(selectedClass.id, doc.id); } catch {}
+          continue;
+        }
+        if (msg.to && msg.to !== identity.id) continue;
+        try {
+          if (msg.type === 'offer' && msg.sdp) {
+            teacherIdRef.current = msg.from as string;
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            try { await addSignal(selectedClass.id, { type: 'answer', classId: selectedClass.id, from: identity.id, role: 'student', to: msg.from, sdp: pc.localDescription ? { type: pc.localDescription.type, sdp: pc.localDescription.sdp } : null }); } catch {}
+            // flush pending candidates
+            const teacherId = msg.from as string;
+            for (const c of pendingCandidatesRef.current) {
+              try { await addSignal(selectedClass.id, { type: 'candidate', classId: selectedClass.id, from: identity.id, role: 'student', to: teacherId, candidate: c }); } catch {}
+            }
+            pendingCandidatesRef.current = [];
+          } else if (msg.type === 'candidate' && msg.candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+          } else if (msg.type === 'end') {
+            setTeacherFeedStatus('OFFLINE');
+            stopTeacherReceiver();
+          }
+        } catch {
+          setTeacherFeedStatus('ERROR');
+        }
+        try { await removeSignal(selectedClass.id, doc.id); } catch {}
+      }
+    });
+    teacherFirestoreUnsubRef.current = unsub;
+
+    // ask teacher for an offer
+    try { addSignal(selectedClass.id, { type: 'join', classId: selectedClass.id, from: identity.id, role: 'student', name: identity.name }); } catch {}
 
     // (handled via Firestore listener above)
 
