@@ -1,0 +1,5 @@
+{
+  "name": "FoodHub Module",
+  "description": "A production-ready Food Ordering and Payment Module for Kitale National Polytechnic, featuring M-Pesa integration and real-time order tracking.",
+  "requestFramePermissions": []
+}

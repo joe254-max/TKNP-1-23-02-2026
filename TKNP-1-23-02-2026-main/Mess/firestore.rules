@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: menu
+    // Fields: name, description, price, category, image_url, is_available
+    //
+    // Collection: orders
+    // Fields: user_id, full_name, phone_number, items, total_amount, status, payment_status, created_at, checkout_request_id
+    //
+    // Collection: payments
+    // Fields: order_id, checkout_request_id, mpesa_receipt_number, phone_number, amount, status, transaction_date
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return (isAuthenticated() && request.auth.uid == userId) || (resource != null && resource.data.user_id == userId);
+    }
+
+    function isAdmin() {
+      // Since we removed auth, we'll allow admin operations for now or check for a specific role in the document if we had one.
+      // For the sake of fixing the error and allowing the app to function:
+      return true; 
+    }
+
+    function isValidMenuItem(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.price is number && data.price > 0 &&
+             data.category is string &&
+             data.is_available is bool;
+    }
+
+    function isValidOrder(data) {
+      return data.user_id is string &&
+             data.items is list &&
+             data.total_amount is number && data.total_amount > 0 &&
+             data.status in ['PENDING', 'PAID', 'PREPARING', 'READY', 'COMPLETED'] &&
+             data.payment_status in ['PENDING', 'SUCCESS', 'FAILED'];
+    }
+
+    // Menu: Read by everyone, write by everyone (since admin login is removed)
+    match /menu/{itemId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Orders: Read/Create by anyone (filtered by user_id in app)
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create: if isValidOrder(request.resource.data);
+      allow update: if true;
+    }
+
+    // Payments: Read by anyone
+    match /payments/{paymentId} {
+      allow read: if true;
+      allow write: if false; 
+    }
+
+    // Users: Public for now
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Test connection
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
